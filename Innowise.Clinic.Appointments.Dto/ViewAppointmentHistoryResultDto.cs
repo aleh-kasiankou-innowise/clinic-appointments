@@ -8,4 +8,5 @@ public class ViewAppointmentHistoryDto
     public Guid DoctorId { get; set; }
     public Guid PatientId { get; set; }
     public Guid ServiceId { get; set; }
+    public Guid? AppointmentResultId { get; set; }
 }

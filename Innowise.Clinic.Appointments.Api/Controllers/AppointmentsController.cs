@@ -18,7 +18,7 @@ public class AppointmentsController : ControllerBase
 
     [HttpGet("history")]
     [Authorize(Roles = "Doctor,Patient")]
-    public async Task<ActionResult<IEnumerable<ViewAppointmentHistoryDto>>> GetPatientAppointmentResultHistory(
+    public async Task<ActionResult<IEnumerable<ViewAppointmentHistoryDto>>> GetPatientAppointmentHistory(
         Guid patientId)
     // For patient ensure he has access to profile
     {

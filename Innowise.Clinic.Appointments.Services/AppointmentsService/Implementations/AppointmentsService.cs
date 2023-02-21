@@ -27,7 +27,8 @@ public class AppointmentsService : IAppointmentsService
                 AppointmentFinish = x.ReservedTimeSlot.AppointmentFinish,
                 DoctorId = x.DoctorId,
                 PatientId = x.PatientId,
-                ServiceId = x.ServiceId
+                ServiceId = x.ServiceId,
+                AppointmentResultId = x.AppointmentResultId
             }).ToListAsync();
     }
 
@@ -105,8 +106,8 @@ public class AppointmentsService : IAppointmentsService
             ReservedTimeSlot = newTimeSlotReservation,
         };
 
-        await _dbContext.Appointments.AddAsync(newAppointment);
         await _dbContext.ReservedTimeSlots.AddAsync(newTimeSlotReservation);
+        await _dbContext.Appointments.AddAsync(newAppointment);
         await _dbContext.SaveChangesAsync();
 
         return newAppointment.AppointmentId;
