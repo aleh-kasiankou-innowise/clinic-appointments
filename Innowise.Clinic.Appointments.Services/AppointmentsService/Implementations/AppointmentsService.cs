@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using Innowise.Clinic.Appointments.Dto;
+using Innowise.Clinic.Appointments.Exceptions;
 using Innowise.Clinic.Appointments.Persistence;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
@@ -121,7 +122,7 @@ public class AppointmentsService : IAppointmentsService
     {
         //TODO IF SENT BY PATIENT, CHECK THAT APPOINTMENT PATIENT ID IS EQUAL TO SENDER PATIENT ID
         var appointment = await _dbContext.Appointments.FirstOrDefaultAsync(x => x.AppointmentId == id) ??
-                          throw new NotImplementedException();
+                          throw new EntityNotFoundException("The requested appointment doesn't exist");
 
         // TODO ADD ANOTHER METHOD FOR DIFFERENT ROLES 
     }
@@ -129,7 +130,7 @@ public class AppointmentsService : IAppointmentsService
     private async Task EnsureDataConsistency(CreateAppointmentDto createAppointmentDto)
     {
         //TODO GROUP TASKS AND CHECK IF ANY IS FALSE
-        
+
         var httpClient = new HttpClient();
         var doctorConsistencyCheck = await httpClient.PostAsJsonAsync("http://profile:80/helperservices/ensure-created",
             new ProfileConsistencyCheckDto
@@ -139,7 +140,9 @@ public class AppointmentsService : IAppointmentsService
                 SpecializationId = createAppointmentDto.SpecializationId,
                 OfficeId = createAppointmentDto.OfficeId
             });
-        if (!doctorConsistencyCheck.IsSuccessStatusCode) throw new NotImplementedException();
+        if (!doctorConsistencyCheck.IsSuccessStatusCode)
+            throw new InconsistentDataException(
+                "The requested doctor either doesn't exist or has a different specialization.");
 
         var patientConsistencyCheck = await httpClient.PostAsJsonAsync(
             "http://profile:80/helperservices/ensure-created",
@@ -148,16 +151,22 @@ public class AppointmentsService : IAppointmentsService
                 ProfileId = createAppointmentDto.PatientId,
                 Role = "Patient"
             });
-        if (!patientConsistencyCheck.IsSuccessStatusCode) throw new NotImplementedException();
+        if (!patientConsistencyCheck.IsSuccessStatusCode)
+            throw new InconsistentDataException(
+                "The requested patient doesn't exist.");
 
         var officeConsistencyCheck =
             await httpClient.GetAsync(
                 $"http://office:80/helperservices/ensure-exists/office/{createAppointmentDto.OfficeId}");
-        if (!officeConsistencyCheck.IsSuccessStatusCode) throw new NotImplementedException();
+        if (!officeConsistencyCheck.IsSuccessStatusCode)
+            throw new InconsistentDataException(
+                "The requested office doesn't exist.");
 
         var serviceAndSpecializationConsistencyCheck =
             await httpClient.GetAsync(
                 $"http://service:80/helperservices/ensure-exists/service/{createAppointmentDto.ServiceId}?specializationId={createAppointmentDto.SpecializationId}");
-        if (!serviceAndSpecializationConsistencyCheck.IsSuccessStatusCode) throw new NotImplementedException();
+        if (!serviceAndSpecializationConsistencyCheck.IsSuccessStatusCode)
+            throw new InconsistentDataException(
+                "The requested service either doesn't exist or belongs to a different specialization.");
     }
 }

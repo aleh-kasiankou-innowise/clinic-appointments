@@ -12,6 +12,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Innowise.Clinic.Appointments.Dto\Innowise.Clinic.Appointments.Dto.csproj" />
+      <ProjectReference Include="..\Innowise.Clinic.Appointments.Exceptions\Innowise.Clinic.Appointments.Exceptions.csproj" />
       <ProjectReference Include="..\Innowise.Clinic.Appointments.Persistence\Innowise.Clinic.Appointments.Persistence.csproj" />
     </ItemGroup>
 

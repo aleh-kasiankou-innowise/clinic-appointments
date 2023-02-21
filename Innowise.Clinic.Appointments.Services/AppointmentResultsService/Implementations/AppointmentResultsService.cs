@@ -1,4 +1,5 @@
 using Innowise.Clinic.Appointments.Dto;
+using Innowise.Clinic.Appointments.Exceptions;
 using Innowise.Clinic.Appointments.Persistence;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.Services.AppointmentResultsService.Interfaces;
@@ -56,7 +57,7 @@ public class AppointmentResultsService : IAppointmentResultsService
     {
         var appointment = await _dbContext.Appointments.FirstOrDefaultAsync(a =>
                               a.AppointmentId == newAppointmentResult.AppointmentId && a.DoctorId == doctorId) ??
-                          throw new NotImplementedException();
+                          throw new EntityNotFoundException("The requested appointment doesn't exist.");
 
         var appointmentResult = new AppointmentResult
         {
@@ -91,7 +92,7 @@ public class AppointmentResultsService : IAppointmentResultsService
         return await _dbContext.AppointmentResults.Include(ar => ar.Appointment).ThenInclude(a => a.ReservedTimeSlot)
                    .FirstOrDefaultAsync(x =>
                        x.AppointmentResultId == id && x.Appointment.DoctorId == doctorId) ??
-               throw new NotImplementedException("The requested appointment doesn't exist");
+               throw new EntityNotFoundException("The requested appointment doesn't exist.");
     }
 
     private async Task<AppointmentResult> GetAppointmentResultByPatientId(Guid id, Guid patientId)
@@ -99,6 +100,6 @@ public class AppointmentResultsService : IAppointmentResultsService
         return await _dbContext.AppointmentResults.Include(ar => ar.Appointment).ThenInclude(a => a.ReservedTimeSlot)
                    .FirstOrDefaultAsync(x =>
                        x.AppointmentResultId == id && x.Appointment.PatientId == patientId) ??
-               throw new NotImplementedException("The requested appointment doesn't exist");
+               throw new EntityNotFoundException("The requested appointment doesn't exist.");
     }
 }
