@@ -1,5 +1,6 @@
 using Innowise.Clinic.Appointments.Configuration;
 using Innowise.Clinic.Appointments.Persistence;
+using Innowise.Clinic.Appointments.RequestPipeline;
 using Innowise.Clinic.Appointments.Services.AppointmentResultsService.Implementations;
 using Innowise.Clinic.Appointments.Services.AppointmentResultsService.Interfaces;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Implementations;
@@ -17,9 +18,11 @@ builder.Services.ConfigureSecurity();
 builder.Services.ConfigureSwagger();
 builder.Services.AddScoped<IAppointmentsService, AppointmentsService>();
 builder.Services.AddScoped<IAppointmentResultsService, AppointmentResultsService>();
+builder.Services.AddSingleton<ExceptionHandlingMiddleware>();
 
 var app = builder.Build();
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseSwagger();
 app.UseSwaggerUI();
 

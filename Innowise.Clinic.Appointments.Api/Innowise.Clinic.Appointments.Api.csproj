@@ -21,6 +21,7 @@
     <ItemGroup>
       <ProjectReference Include="..\Innowise.Clinic.Appointments.Configuration\Innowise.Clinic.Appointments.Configuration.csproj" />
       <ProjectReference Include="..\Innowise.Clinic.Appointments.Dto\Innowise.Clinic.Appointments.Dto.csproj" />
+      <ProjectReference Include="..\Innowise.Clinic.Appointments.RequestPipeline\Innowise.Clinic.Appointments.RequestPipeline.csproj" />
       <ProjectReference Include="..\Innowise.Clinic.Appointments.Services\Innowise.Clinic.Appointments.Services.csproj" />
     </ItemGroup>
 
