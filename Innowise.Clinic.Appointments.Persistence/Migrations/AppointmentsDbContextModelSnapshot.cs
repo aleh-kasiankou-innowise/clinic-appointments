@@ -70,9 +70,6 @@ namespace Innowise.Clinic.Appointments.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("AppointmentId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("Complaints")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -87,9 +84,6 @@ namespace Innowise.Clinic.Appointments.Persistence.Migrations
 
                     b.HasKey("AppointmentResultId");
 
-                    b.HasIndex("AppointmentId")
-                        .IsUnique();
-
                     b.ToTable("AppointmentResults");
                 });
 
@@ -102,9 +96,6 @@ namespace Innowise.Clinic.Appointments.Persistence.Migrations
                     b.Property<DateTime>("AppointmentFinish")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("AppointmentId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<DateTime>("AppointmentStart")
                         .HasColumnType("datetime2");
 
@@ -116,14 +107,14 @@ namespace Innowise.Clinic.Appointments.Persistence.Migrations
             modelBuilder.Entity("Innowise.Clinic.Appointments.Persistence.Models.Appointment", b =>
                 {
                     b.HasOne("Innowise.Clinic.Appointments.Persistence.Models.AppointmentResult", "AppointmentResult")
-                        .WithOne()
+                        .WithOne("Appointment")
                         .HasForeignKey("Innowise.Clinic.Appointments.Persistence.Models.Appointment", "AppointmentResultId")
-                        .OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Innowise.Clinic.Appointments.Persistence.Models.ReservedTimeSlot", "ReservedTimeSlot")
-                        .WithOne()
+                        .WithOne("Appointment")
                         .HasForeignKey("Innowise.Clinic.Appointments.Persistence.Models.Appointment", "ReservedTimeSlotId")
-                        .OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("AppointmentResult");
@@ -133,13 +124,14 @@ namespace Innowise.Clinic.Appointments.Persistence.Migrations
 
             modelBuilder.Entity("Innowise.Clinic.Appointments.Persistence.Models.AppointmentResult", b =>
                 {
-                    b.HasOne("Innowise.Clinic.Appointments.Persistence.Models.Appointment", "Appointment")
-                        .WithOne()
-                        .HasForeignKey("Innowise.Clinic.Appointments.Persistence.Models.AppointmentResult", "AppointmentId")
-                        .OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Cascade)
+                    b.Navigation("Appointment")
                         .IsRequired();
+                });
 
-                    b.Navigation("Appointment");
+            modelBuilder.Entity("Innowise.Clinic.Appointments.Persistence.Models.ReservedTimeSlot", b =>
+                {
+                    b.Navigation("Appointment")
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

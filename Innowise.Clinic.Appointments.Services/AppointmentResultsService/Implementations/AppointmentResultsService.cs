@@ -15,7 +15,6 @@ public class AppointmentResultsService : IAppointmentResultsService
         _dbContext = dbContext;
     }
 
-    
 
     public async Task<ViewAppointmentResultDto> GetDoctorAppointmentResult(Guid id, Guid doctorId)
     {
@@ -55,20 +54,22 @@ public class AppointmentResultsService : IAppointmentResultsService
 
     public async Task<Guid> CreateAppointmentResult(CreateAppointmentResultDto newAppointmentResult, Guid doctorId)
     {
-
         var appointment = await _dbContext.Appointments.FirstOrDefaultAsync(a =>
                               a.AppointmentId == newAppointmentResult.AppointmentId && a.DoctorId == doctorId) ??
                           throw new NotImplementedException();
 
         var appointmentResult = new AppointmentResult
         {
-            AppointmentId = newAppointmentResult.AppointmentId,
             Complaints = newAppointmentResult.Complaints,
             Conclusion = newAppointmentResult.Conclusion,
             Recommendations = newAppointmentResult.Recommendations
         };
 
+        appointment.AppointmentResult = appointmentResult;
+
         _dbContext.AppointmentResults.Add(appointmentResult);
+        _dbContext.Update(appointment);
+
         await _dbContext.SaveChangesAsync();
 
         return appointmentResult.AppointmentResultId;

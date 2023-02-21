@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using Innowise.Clinic.Appointments.Dto;
 using Innowise.Clinic.Appointments.Persistence;
 using Innowise.Clinic.Appointments.Persistence.Models;
@@ -89,6 +90,8 @@ public class AppointmentsService : IAppointmentsService
 
     public async Task<Guid> CreateAppointmentAsync(CreateAppointmentDto createAppointmentDto)
     {
+        await EnsureDataConsistency(createAppointmentDto);
+
         var newTimeSlotReservation = new ReservedTimeSlot
         {
             AppointmentStart = createAppointmentDto.AppointmentStart,
@@ -119,7 +122,42 @@ public class AppointmentsService : IAppointmentsService
         //TODO IF SENT BY PATIENT, CHECK THAT APPOINTMENT PATIENT ID IS EQUAL TO SENDER PATIENT ID
         var appointment = await _dbContext.Appointments.FirstOrDefaultAsync(x => x.AppointmentId == id) ??
                           throw new NotImplementedException();
-        
+
         // TODO ADD ANOTHER METHOD FOR DIFFERENT ROLES 
+    }
+
+    private async Task EnsureDataConsistency(CreateAppointmentDto createAppointmentDto)
+    {
+        //TODO GROUP TASKS AND CHECK IF ANY IS FALSE
+        
+        var httpClient = new HttpClient();
+        var doctorConsistencyCheck = await httpClient.PostAsJsonAsync("http://profile:80/helperservices/ensure-created",
+            new ProfileConsistencyCheckDto
+            {
+                ProfileId = createAppointmentDto.DoctorId,
+                Role = "Doctor",
+                SpecializationId = createAppointmentDto.SpecializationId,
+                OfficeId = createAppointmentDto.OfficeId
+            });
+        if (!doctorConsistencyCheck.IsSuccessStatusCode) throw new NotImplementedException();
+
+        var patientConsistencyCheck = await httpClient.PostAsJsonAsync(
+            "http://profile:80/helperservices/ensure-created",
+            new ProfileConsistencyCheckDto
+            {
+                ProfileId = createAppointmentDto.PatientId,
+                Role = "Patient"
+            });
+        if (!patientConsistencyCheck.IsSuccessStatusCode) throw new NotImplementedException();
+
+        var officeConsistencyCheck =
+            await httpClient.GetAsync(
+                $"http://office:80/helperservices/ensure-exists/office/{createAppointmentDto.OfficeId}");
+        if (!officeConsistencyCheck.IsSuccessStatusCode) throw new NotImplementedException();
+
+        var serviceAndSpecializationConsistencyCheck =
+            await httpClient.GetAsync(
+                $"http://service:80/helperservices/ensure-exists/service/{createAppointmentDto.ServiceId}?specializationId={createAppointmentDto.SpecializationId}");
+        if (!serviceAndSpecializationConsistencyCheck.IsSuccessStatusCode) throw new NotImplementedException();
     }
 }

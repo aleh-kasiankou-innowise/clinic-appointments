@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Innowise.Clinic.Appointments.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class NullableAppoinmentResult : Migration
+    public partial class AppointmentResultNullability : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

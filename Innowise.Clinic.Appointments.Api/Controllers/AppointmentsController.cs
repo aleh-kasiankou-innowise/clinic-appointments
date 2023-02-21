@@ -16,13 +16,12 @@ public class AppointmentsController : ControllerBase
         _appointmentsService = appointmentsService;
     }
 
-    [HttpGet("history")]
+    [HttpGet("history/{patientId:guid}")]
     [Authorize(Roles = "Doctor,Patient")]
     public async Task<ActionResult<IEnumerable<ViewAppointmentHistoryDto>>> GetPatientAppointmentHistory(
-        Guid patientId)
-    // For patient ensure he has access to profile
+            [FromRoute] Guid patientId)
+        // For patient ensure he has access to profile
     {
-
         var appointments = await _appointmentsService.GetPatientAppointmentHistory(patientId);
         // get by doctor
         // get by patient
@@ -35,7 +34,7 @@ public class AppointmentsController : ControllerBase
         [FromBody] AppointmentFilterBaseDto filter)
     {
         // TODO USE QUERY PARAMS INSTEAD OF BODY
-        
+
         if (User.IsInRole("Doctor") && filter is AppointmentDoctorFilterDto doctorFilterDto)
         {
             return Ok(await _appointmentsService.GetDoctorsAppointmentsAsync(doctorFilterDto));

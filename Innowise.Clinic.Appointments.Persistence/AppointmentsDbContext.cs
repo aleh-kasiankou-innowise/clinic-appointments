@@ -15,26 +15,25 @@ public class AppointmentsDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Appointment>()
-            .HasKey(x => x.AppointmentId);
-
-        modelBuilder.Entity<Appointment>()
-            .HasOne(x => x.ReservedTimeSlot)
-            .WithOne().HasForeignKey<Appointment>(x => x.ReservedTimeSlotId).OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<Appointment>()
-            .HasOne(x => x.AppointmentResult)
-            .WithOne().HasForeignKey<Appointment>(x => x.AppointmentResultId).OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<Appointment>();
-
         modelBuilder.Entity<ReservedTimeSlot>()
             .HasKey(x => x.ReservedTimeSlotId);
 
         modelBuilder.Entity<AppointmentResult>()
             .HasKey(x => x.AppointmentResultId);
 
-        modelBuilder.Entity<AppointmentResult>().HasOne(x => x.Appointment)
-            .WithOne().HasForeignKey<AppointmentResult>(x => x.AppointmentId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Appointment>()
+            .HasKey(x => x.AppointmentId);
+
+        modelBuilder.Entity<Appointment>()
+            .HasOne(x => x.ReservedTimeSlot)
+            .WithOne(t => t.Appointment)
+            .HasForeignKey<Appointment>(app => app.ReservedTimeSlotId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Appointment>()
+            .HasOne(x => x.AppointmentResult)
+            .WithOne(ar => ar.Appointment)
+            .HasForeignKey<Appointment>(a => a.AppointmentResultId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
