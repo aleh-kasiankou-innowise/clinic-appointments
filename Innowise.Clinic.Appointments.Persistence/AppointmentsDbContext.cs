@@ -12,15 +12,22 @@ public class AppointmentsDbContext : DbContext
     public DbSet<Appointment> Appointments { get; init; }
     public DbSet<ReservedTimeSlot> ReservedTimeSlots { get; init; }
     public DbSet<AppointmentResult> AppointmentResults { get; init; }
+    public DbSet<Doctor> Doctors { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Doctor>()
+            .HasKey(x => x.DoctorId);
+
+        
         modelBuilder.Entity<ReservedTimeSlot>()
             .HasKey(x => x.ReservedTimeSlotId);
 
+        
         modelBuilder.Entity<AppointmentResult>()
             .HasKey(x => x.AppointmentResultId);
 
+        
         modelBuilder.Entity<Appointment>()
             .HasKey(x => x.AppointmentId);
 
@@ -34,6 +41,12 @@ public class AppointmentsDbContext : DbContext
             .HasOne(x => x.AppointmentResult)
             .WithOne(ar => ar.Appointment)
             .HasForeignKey<Appointment>(a => a.AppointmentResultId)
+            .OnDelete(DeleteBehavior.Restrict);
+        
+        modelBuilder.Entity<Appointment>()
+            .HasOne(x => x.Doctor)
+            .WithMany()
+            .HasForeignKey(app => app.DoctorId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -2,20 +2,17 @@ using Innowise.Clinic.Appointments.Persistence.Models;
 
 namespace Innowise.Clinic.Appointments.Dto;
 
+public record AppointmentEditTimeDto(Guid AppointmentId, Guid DoctorId, DateTime AppointmentStart,
+    DateTime AppointmentEnd);
 
-
-public abstract class AppointmentEditDto
-{
-    public Guid AppointmentId { get; set; }
-}
-
-public class AppointmentEditStatusDto : AppointmentEditDto
-{
-    public AppointmentStatus AppointmentStatus { get; set; }
-}
-
-public class AppointmentEditTimeDto : AppointmentEditDto
-{
-    public Guid DoctorId { get; set; }
-    public Guid AppointmentStart { get; init; }
-}
+public record AppointmentEditTimeAndStatusDto(
+        Guid AppointmentId,
+        Guid DoctorId,
+        DateTime AppointmentStart,
+        DateTime AppointmentEnd,
+        AppointmentStatus AppointmentStatus)
+    : AppointmentEditTimeDto(
+        AppointmentId,
+        DoctorId,
+        AppointmentStart,
+        AppointmentEnd);

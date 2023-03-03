@@ -14,5 +14,8 @@ public interface IAppointmentsService
 
     Task<Guid> CreateAppointmentAsync(CreateAppointmentDto createAppointmentDto);
 
-    Task UpdateAppointmentAsync(Guid id, AppointmentEditDto updatedAppointment);
+    Task<Guid> CreateAppointmentAsync(CreateAppointmentDto createAppointmentDto, Guid referrerPatientProfileId);
+
+    Task UpdateAppointmentAsync(Guid id, AppointmentEditTimeAndStatusDto updatedAppointment);
+    Task UpdateAppointmentAsync(Guid id, AppointmentEditTimeDto updatedAppointment, Guid referrerPatientProfileId);
 }

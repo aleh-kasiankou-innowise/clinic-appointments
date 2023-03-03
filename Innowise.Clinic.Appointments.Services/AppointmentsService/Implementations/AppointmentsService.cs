@@ -4,6 +4,7 @@ using Innowise.Clinic.Appointments.Exceptions;
 using Innowise.Clinic.Appointments.Persistence;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
+using Innowise.Clinic.Appointments.Services.MassTransitService.MessageTypes;
 using Microsoft.EntityFrameworkCore;
 
 namespace Innowise.Clinic.Appointments.Services.AppointmentsService.Implementations;
@@ -75,7 +76,7 @@ public class AppointmentsService : IAppointmentsService
 
         if (appointmentReceptionistFilterDto.OfficeIdFilter != null)
         {
-            query = query.Where(x => x.OfficeId == appointmentReceptionistFilterDto.OfficeIdFilter);
+            query = query.Where(x => x.Doctor.OfficeId == appointmentReceptionistFilterDto.OfficeIdFilter);
         }
 
         return await query.Select(x => new AppointmentInfoDto
@@ -93,57 +94,77 @@ public class AppointmentsService : IAppointmentsService
     {
         await EnsureDataConsistency(createAppointmentDto);
 
-        var newTimeSlotReservation = new ReservedTimeSlot
+        // TODO MAKE REQUEST TO SCHEDULING SERVICE. The message will be sent to save reservation here as well;
+        var timeSlotReservationResult = new TimeSlotReservationResponse(default, default);
+        if (timeSlotReservationResult is { IsSuccessful: true, ReservedTimeSlotId: { } })
         {
-            AppointmentStart = createAppointmentDto.AppointmentStart,
-            AppointmentFinish = createAppointmentDto.AppointmentFinish
-        };
+            var newTimeSlotReservation = new ReservedTimeSlot
+            {
+                ReservedTimeSlotId = (Guid)timeSlotReservationResult.ReservedTimeSlotId,
+                AppointmentStart = createAppointmentDto.AppointmentStart,
+                AppointmentFinish = createAppointmentDto.AppointmentFinish
+            };
 
-        var newAppointment = new Appointment
-        {
-            DoctorId = createAppointmentDto.DoctorId,
-            SpecializationId = createAppointmentDto.SpecializationId,
-            ServiceId = createAppointmentDto.ServiceId,
-            OfficeId = createAppointmentDto.OfficeId,
-            PatientId = createAppointmentDto.PatientId,
-            Status = AppointmentStatus.Created,
-            ReservedTimeSlot = newTimeSlotReservation,
-        };
+            var newAppointment = new Appointment
+            {
+                DoctorId = createAppointmentDto.DoctorId,
+                ServiceId = createAppointmentDto.ServiceId,
+                PatientId = createAppointmentDto.PatientId,
+                Status = AppointmentStatus.Created,
+                ReservedTimeSlot = newTimeSlotReservation,
+            };
 
-        await _dbContext.ReservedTimeSlots.AddAsync(newTimeSlotReservation);
-        await _dbContext.Appointments.AddAsync(newAppointment);
-        await _dbContext.SaveChangesAsync();
+            await _dbContext.ReservedTimeSlots.AddAsync(newTimeSlotReservation);
+            await _dbContext.Appointments.AddAsync(newAppointment);
+            await _dbContext.SaveChangesAsync();
+            return newAppointment.AppointmentId;
+        }
 
-        return newAppointment.AppointmentId;
+        throw new NotImplementedException("Exception saying the reservation failed, + specify reason.");
     }
 
-
-    public async Task UpdateAppointmentAsync(Guid id, AppointmentEditDto updatedAppointment)
+    public async Task<Guid> CreateAppointmentAsync(CreateAppointmentDto createAppointmentDto,
+        Guid referrerPatientProfileId)
     {
-        //TODO IF SENT BY PATIENT, CHECK THAT APPOINTMENT PATIENT ID IS EQUAL TO SENDER PATIENT ID
-        var appointment = await _dbContext.Appointments.FirstOrDefaultAsync(x => x.AppointmentId == id) ??
-                          throw new EntityNotFoundException("The requested appointment doesn't exist");
+        if (createAppointmentDto.PatientId != referrerPatientProfileId)
+            throw new NotAllowedException("It is only possible to make an appointment for yourself.");
 
-        // TODO ADD ANOTHER METHOD FOR DIFFERENT ROLES 
+        return await CreateAppointmentAsync(createAppointmentDto);
+    }
+
+    public async Task UpdateAppointmentAsync(Guid id, AppointmentEditTimeAndStatusDto updatedAppointment)
+    {
+        var appointment = await GetAppointment(id);
+        // TODO CALL TIMESLOT SERVICE TO RESERVE TIMESLOT
+    }
+
+    public async Task UpdateAppointmentAsync(Guid id, AppointmentEditTimeDto updatedAppointment,
+        Guid referrerPatientProfileId)
+    {
+        var appointment = await GetAppointment(id);
+        if (appointment.PatientId != referrerPatientProfileId)
+            throw new NotAllowedException("Patients are not allowed to edit appointments of other patients");
+        // TODO CALL TIMESLOT SERVICE TO RESERVE TIMESLOT
+    }
+
+    private async Task<Appointment> GetAppointment(Guid id)
+    {
+        return await _dbContext.Appointments.FirstOrDefaultAsync(x => x.AppointmentId == id) ??
+               throw new EntityNotFoundException("The requested appointment doesn't exist");
     }
 
     private async Task EnsureDataConsistency(CreateAppointmentDto createAppointmentDto)
     {
+        var doctor = await _dbContext.Doctors.FirstOrDefaultAsync(x =>
+                         x.DoctorId == createAppointmentDto.DoctorId &&
+                         x.SpecializationId == createAppointmentDto.SpecializationId &&
+                         x.OfficeId == createAppointmentDto.OfficeId)
+                     ?? throw new InconsistentDataException(
+                         "There is no doctor with such id, specialization and office.");
+
         //TODO GROUP TASKS AND CHECK IF ANY IS FALSE
-
         var httpClient = new HttpClient();
-        var doctorConsistencyCheck = await httpClient.PostAsJsonAsync("http://profile:80/helperservices/ensure-created",
-            new ProfileConsistencyCheckDto
-            {
-                ProfileId = createAppointmentDto.DoctorId,
-                Role = "Doctor",
-                SpecializationId = createAppointmentDto.SpecializationId,
-                OfficeId = createAppointmentDto.OfficeId
-            });
-        if (!doctorConsistencyCheck.IsSuccessStatusCode)
-            throw new InconsistentDataException(
-                "The requested doctor either doesn't exist or has a different specialization.");
-
+        //TODO convert to MassTransit requests
         var patientConsistencyCheck = await httpClient.PostAsJsonAsync(
             "http://profile:80/helperservices/ensure-created",
             new ProfileConsistencyCheckDto
@@ -155,13 +176,7 @@ public class AppointmentsService : IAppointmentsService
             throw new InconsistentDataException(
                 "The requested patient doesn't exist.");
 
-        var officeConsistencyCheck =
-            await httpClient.GetAsync(
-                $"http://office:80/helperservices/ensure-exists/office/{createAppointmentDto.OfficeId}");
-        if (!officeConsistencyCheck.IsSuccessStatusCode)
-            throw new InconsistentDataException(
-                "The requested office doesn't exist.");
-
+        //TODO convert to MassTransit requests
         var serviceAndSpecializationConsistencyCheck =
             await httpClient.GetAsync(
                 $"http://service:80/helperservices/ensure-exists/service/{createAppointmentDto.ServiceId}?specializationId={createAppointmentDto.SpecializationId}");

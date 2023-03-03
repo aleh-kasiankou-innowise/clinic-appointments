@@ -20,14 +20,13 @@ public class AppointmentResultsService : IAppointmentResultsService
     public async Task<ViewAppointmentResultDto> GetDoctorAppointmentResult(Guid id, Guid doctorId)
     {
         var appointmentResult = await GetAppointmentResultByDoctorId(id, doctorId);
-
         return new ViewAppointmentResultDto
         {
             AppointmentResultId = appointmentResult.AppointmentResultId,
             AppointmentDate = appointmentResult.Appointment.ReservedTimeSlot.AppointmentStart.Date,
             PatientId = appointmentResult.Appointment.PatientId,
             DoctorId = doctorId,
-            SpecializationId = appointmentResult.Appointment.SpecializationId,
+            SpecializationId = appointmentResult.Appointment.Doctor.SpecializationId,
             ServiceId = appointmentResult.Appointment.ServiceId,
             Complaints = appointmentResult.Complaints,
             Conclusion = appointmentResult.Conclusion,
@@ -38,14 +37,13 @@ public class AppointmentResultsService : IAppointmentResultsService
     public async Task<ViewAppointmentResultDto> GetPatientAppointmentResult(Guid id, Guid patientId)
     {
         var appointmentResult = await GetAppointmentResultByPatientId(id, patientId);
-
         return new ViewAppointmentResultDto
         {
             AppointmentResultId = appointmentResult.AppointmentResultId,
             AppointmentDate = appointmentResult.Appointment.ReservedTimeSlot.AppointmentStart.Date,
             PatientId = appointmentResult.Appointment.PatientId,
             DoctorId = appointmentResult.Appointment.DoctorId,
-            SpecializationId = appointmentResult.Appointment.SpecializationId,
+            SpecializationId = appointmentResult.Appointment.Doctor.SpecializationId,
             ServiceId = appointmentResult.Appointment.ServiceId,
             Complaints = appointmentResult.Complaints,
             Conclusion = appointmentResult.Conclusion,
@@ -89,7 +87,12 @@ public class AppointmentResultsService : IAppointmentResultsService
 
     private async Task<AppointmentResult> GetAppointmentResultByDoctorId(Guid id, Guid doctorId)
     {
-        return await _dbContext.AppointmentResults.Include(ar => ar.Appointment).ThenInclude(a => a.ReservedTimeSlot)
+        // TODO MAKE METHODS ADHERE TO DRY PRINCIPLE
+        return await _dbContext.AppointmentResults
+                   .Include(ar => ar.Appointment)
+                   .ThenInclude(a => a.ReservedTimeSlot)
+                   .Include(x => x.Appointment)
+                   .ThenInclude(app => app.Doctor)
                    .FirstOrDefaultAsync(x =>
                        x.AppointmentResultId == id && x.Appointment.DoctorId == doctorId) ??
                throw new EntityNotFoundException("The requested appointment doesn't exist.");
@@ -97,7 +100,12 @@ public class AppointmentResultsService : IAppointmentResultsService
 
     private async Task<AppointmentResult> GetAppointmentResultByPatientId(Guid id, Guid patientId)
     {
-        return await _dbContext.AppointmentResults.Include(ar => ar.Appointment).ThenInclude(a => a.ReservedTimeSlot)
+        // TODO MAKE METHODS ADHERE TO DRY PRINCIPLE
+        return await _dbContext.AppointmentResults
+                   .Include(ar => ar.Appointment)
+                   .ThenInclude(a => a.ReservedTimeSlot)
+                   .Include(x => x.Appointment)
+                   .ThenInclude(app => app.Doctor)
                    .FirstOrDefaultAsync(x =>
                        x.AppointmentResultId == id && x.Appointment.PatientId == patientId) ??
                throw new EntityNotFoundException("The requested appointment doesn't exist.");

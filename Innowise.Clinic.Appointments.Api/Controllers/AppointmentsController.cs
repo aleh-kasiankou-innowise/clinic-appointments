@@ -1,4 +1,7 @@
 using Innowise.Clinic.Appointments.Dto;
+using Innowise.Clinic.Appointments.Exceptions;
+using Innowise.Clinic.Appointments.RequestPipeline;
+using Innowise.Clinic.Appointments.RequestPipeline.Constants;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,14 +21,11 @@ public class AppointmentsController : ControllerBase
 
     [HttpGet("history/{patientId:guid}")]
     [Authorize(Roles = "Doctor,Patient")]
+    [ProvideAccessToOwnProfileOnlyFilter("Patient")]
     public async Task<ActionResult<IEnumerable<ViewAppointmentHistoryDto>>> GetPatientAppointmentHistory(
-            [FromRoute] Guid patientId)
-        // For patient ensure he has access to profile
+        [FromRoute] Guid patientId)
     {
-        var appointments = await _appointmentsService.GetPatientAppointmentHistory(patientId);
-        // get by doctor
-        // get by patient
-        return Ok(appointments);
+        return Ok(await _appointmentsService.GetPatientAppointmentHistory(patientId));
     }
 
     [HttpGet]
@@ -50,20 +50,53 @@ public class AppointmentsController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "Patient,Receptionist")]
-    //TODO Patient can only create an appointment for himself
     public async Task<ActionResult<Guid>> CreateAppointment([FromBody] CreateAppointmentDto newAppointment)
     {
-        return Ok((await _appointmentsService.CreateAppointmentAsync(newAppointment)).ToString());
+        Guid createdAppointmentId;
+        if (User.IsInRole("Patient"))
+        {
+            createdAppointmentId =
+                await _appointmentsService.CreateAppointmentAsync(newAppointment, ExtractUserProfileId());
+        }
+        else
+        {
+            createdAppointmentId = await _appointmentsService.CreateAppointmentAsync(newAppointment);
+        }
+
+        return Ok(createdAppointmentId.ToString());
     }
 
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "Patient,Receptionist")]
-    // TODO Patient can only edit his own appointment
     public async Task<IActionResult> UpdateAppointment([FromRoute] Guid id,
-        [FromBody] AppointmentEditDto updatedAppointment)
+        [FromBody] AppointmentEditTimeDto updatedAppointment)
     {
-        if (User.IsInRole("Patient") && updatedAppointment is AppointmentEditStatusDto) return Unauthorized();
-        await _appointmentsService.UpdateAppointmentAsync(id, updatedAppointment);
-        return Ok();
+        if (User.IsInRole("Patient"))
+        {
+            if (updatedAppointment.GetType() == typeof(AppointmentEditTimeDto))
+            {
+                await _appointmentsService.UpdateAppointmentAsync(id, updatedAppointment, ExtractUserProfileId());
+                return Ok();
+            }
+
+            return Unauthorized();
+        }
+
+        if (updatedAppointment is AppointmentEditTimeAndStatusDto editTimeAndStatusDto)
+        {
+            await _appointmentsService.UpdateAppointmentAsync(id, editTimeAndStatusDto);
+            return Ok();
+        }
+
+        throw new InvalidDtoException(
+            "The appointment cannot be updated because the sent data doesn't correspond to your role. ");
+    }
+
+    private Guid ExtractUserProfileId()
+    {
+        var userId = User.Claims.FirstOrDefault(x => x.Type == JwtClaimTypes.LimitedAccessToProfileClaim)?.Value ??
+                     throw new UserIdClaimNotFoundException();
+
+        return Guid.Parse(userId);
     }
 }

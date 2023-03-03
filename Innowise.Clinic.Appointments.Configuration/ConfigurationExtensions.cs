@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,7 +8,7 @@ using Microsoft.OpenApi.Models;
 
 namespace Innowise.Clinic.Appointments.Configuration;
 
-public static class StartupConfigurator
+public static class ConfigurationExtensions
 {
     public static IServiceCollection ConfigureSecurity(this IServiceCollection services)
     {
@@ -58,6 +59,23 @@ public static class StartupConfigurator
         
 
         services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
+        return services;
+    }
+
+    public static IServiceCollection ConfigureCrossServiceCommunication(this IServiceCollection services)
+    {
+        services.AddMassTransit(x =>
+        {
+            x.UsingRabbitMq((context,cfg) =>
+            {
+                // TODO USE CONFIG
+                cfg.Host("localhost", "/", h => {
+                    h.Username("guest");
+                    h.Password("guest");
+                });
+                cfg.ConfigureEndpoints(context);
+            });
+        });
         return services;
     }
 }
