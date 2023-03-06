@@ -1,10 +1,10 @@
-using System.Net.Http.Json;
 using Innowise.Clinic.Appointments.Dto;
 using Innowise.Clinic.Appointments.Exceptions;
 using Innowise.Clinic.Appointments.Persistence;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
-using Innowise.Clinic.Appointments.Services.MassTransitService.MessageTypes;
+using Innowise.Clinic.Shared.Exceptions;
+using Innowise.Clinic.Shared.MassTransit.MessageTypes;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
@@ -103,7 +103,6 @@ public class AppointmentsService : IAppointmentsService
     public async Task<Guid> CreateAppointmentAsync(CreateAppointmentDto createAppointmentDto)
     {
         await EnsureDataConsistency(createAppointmentDto);
-
         var timeSlotReservationResult = await _reservationClient.GetResponse<TimeSlotReservationResponse>(new(
             createAppointmentDto.DoctorId,
             createAppointmentDto.AppointmentStart,
@@ -118,7 +117,6 @@ public class AppointmentsService : IAppointmentsService
                 AppointmentStart = createAppointmentDto.AppointmentStart,
                 AppointmentFinish = createAppointmentDto.AppointmentFinish
             };
-
             var newAppointment = new Appointment
             {
                 DoctorId = createAppointmentDto.DoctorId,
@@ -127,14 +125,15 @@ public class AppointmentsService : IAppointmentsService
                 Status = AppointmentStatus.Created,
                 ReservedTimeSlot = newTimeSlotReservation,
             };
-
             await _dbContext.ReservedTimeSlots.AddAsync(newTimeSlotReservation);
             await _dbContext.Appointments.AddAsync(newAppointment);
             await _dbContext.SaveChangesAsync();
             return newAppointment.AppointmentId;
         }
 
-        throw new NotImplementedException("Exception saying the reservation failed, + specify reason.");
+        throw new ReservationFailedException(timeSlotReservationResult.Message.FailReason ??
+                                             throw new ArgumentException("No fail reason provided",
+                                                 "createAppointmentDto"));
     }
 
     public async Task<Guid> CreateAppointmentAsync(CreateAppointmentDto createAppointmentDto,
@@ -173,7 +172,7 @@ public class AppointmentsService : IAppointmentsService
             x.DoctorId == createAppointmentDto.DoctorId &&
             x.SpecializationId == createAppointmentDto.SpecializationId &&
             x.OfficeId == createAppointmentDto.OfficeId);
-            
+
         var profileConsistencyCheckTask =
             _profileConsistencyCheckClient.GetResponse<ProfileExistsAndHasRoleResponse>(
                 new(createAppointmentDto.PatientId, "Patient"));

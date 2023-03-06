@@ -1,8 +1,8 @@
 using Innowise.Clinic.Appointments.Dto;
-using Innowise.Clinic.Appointments.Exceptions;
 using Innowise.Clinic.Appointments.Persistence;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.Services.AppointmentResultsService.Interfaces;
+using Innowise.Clinic.Shared.Exceptions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Innowise.Clinic.Appointments.Services.AppointmentResultsService.Implementations;
