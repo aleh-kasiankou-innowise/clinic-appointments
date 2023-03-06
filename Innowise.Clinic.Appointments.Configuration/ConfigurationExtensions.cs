@@ -2,6 +2,7 @@
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -32,7 +33,7 @@ public static class ConfigurationExtensions
         });
         return services;
     }
-    
+
     public static IServiceCollection ConfigureSwagger(this IServiceCollection services)
     {
         services.AddSwaggerGen(opts =>
@@ -56,22 +57,24 @@ public static class ConfigurationExtensions
                 }
             });
         });
-        
+
 
         services.Configure<RouteOptions>(options => { options.LowercaseUrls = true; });
         return services;
     }
 
-    public static IServiceCollection ConfigureCrossServiceCommunication(this IServiceCollection services)
+    public static IServiceCollection ConfigureCrossServiceCommunication(this IServiceCollection services,
+        IConfiguration configuration)
     {
+        var rabbitMqConfig = configuration.GetSection("RabbitConfigurations");
         services.AddMassTransit(x =>
         {
-            x.UsingRabbitMq((context,cfg) =>
+            x.UsingRabbitMq((context, cfg) =>
             {
-                // TODO USE CONFIG
-                cfg.Host("localhost", "/", h => {
-                    h.Username("guest");
-                    h.Password("guest");
+                cfg.Host(rabbitMqConfig["HostName"], h =>
+                {
+                    h.Username(rabbitMqConfig["UserName"]);
+                    h.Password(rabbitMqConfig["Password"]);
                 });
                 cfg.ConfigureEndpoints(context);
             });

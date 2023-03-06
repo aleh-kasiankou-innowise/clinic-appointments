@@ -5,6 +5,7 @@ using Innowise.Clinic.Appointments.Persistence;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
 using Innowise.Clinic.Appointments.Services.MassTransitService.MessageTypes;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
 namespace Innowise.Clinic.Appointments.Services.AppointmentsService.Implementations;
@@ -14,10 +15,19 @@ public class AppointmentsService : IAppointmentsService
     // TODO ADD SORTING
 
     private readonly AppointmentsDbContext _dbContext;
+    private readonly IRequestClient<TimeSlotReservationRequest> _reservationClient;
+    private readonly IRequestClient<ProfileExistsAndHasRoleRequest> _profileConsistencyCheckClient;
+    private readonly IRequestClient<ServiceExistsAndBelongsToSpecializationRequest> _serviceConsistencyCheckClient;
 
-    public AppointmentsService(AppointmentsDbContext dbContext)
+    public AppointmentsService(AppointmentsDbContext dbContext,
+        IRequestClient<TimeSlotReservationRequest> reservationClient,
+        IRequestClient<ProfileExistsAndHasRoleRequest> profileConsistencyCheckClient,
+        IRequestClient<ServiceExistsAndBelongsToSpecializationRequest> serviceConsistencyCheckClient)
     {
         _dbContext = dbContext;
+        _reservationClient = reservationClient;
+        _profileConsistencyCheckClient = profileConsistencyCheckClient;
+        _serviceConsistencyCheckClient = serviceConsistencyCheckClient;
     }
 
     public async Task<IEnumerable<ViewAppointmentHistoryDto>> GetPatientAppointmentHistory(Guid patientId)
@@ -94,13 +104,17 @@ public class AppointmentsService : IAppointmentsService
     {
         await EnsureDataConsistency(createAppointmentDto);
 
-        // TODO MAKE REQUEST TO SCHEDULING SERVICE. The message will be sent to save reservation here as well;
-        var timeSlotReservationResult = new TimeSlotReservationResponse(default, default);
-        if (timeSlotReservationResult is { IsSuccessful: true, ReservedTimeSlotId: { } })
+        var timeSlotReservationResult = await _reservationClient.GetResponse<TimeSlotReservationResponse>(new(
+            createAppointmentDto.DoctorId,
+            createAppointmentDto.AppointmentStart,
+            createAppointmentDto.AppointmentFinish)
+        );
+
+        if (timeSlotReservationResult.Message is { IsSuccessful: true, ReservedTimeSlotId: { } })
         {
             var newTimeSlotReservation = new ReservedTimeSlot
             {
-                ReservedTimeSlotId = (Guid)timeSlotReservationResult.ReservedTimeSlotId,
+                ReservedTimeSlotId = (Guid)timeSlotReservationResult.Message.ReservedTimeSlotId,
                 AppointmentStart = createAppointmentDto.AppointmentStart,
                 AppointmentFinish = createAppointmentDto.AppointmentFinish
             };
@@ -155,33 +169,42 @@ public class AppointmentsService : IAppointmentsService
 
     private async Task EnsureDataConsistency(CreateAppointmentDto createAppointmentDto)
     {
-        var doctor = await _dbContext.Doctors.FirstOrDefaultAsync(x =>
-                         x.DoctorId == createAppointmentDto.DoctorId &&
-                         x.SpecializationId == createAppointmentDto.SpecializationId &&
-                         x.OfficeId == createAppointmentDto.OfficeId)
-                     ?? throw new InconsistentDataException(
-                         "There is no doctor with such id, specialization and office.");
+        var doctorGetTask = _dbContext.Doctors.FirstOrDefaultAsync(x =>
+            x.DoctorId == createAppointmentDto.DoctorId &&
+            x.SpecializationId == createAppointmentDto.SpecializationId &&
+            x.OfficeId == createAppointmentDto.OfficeId);
+            
+        var profileConsistencyCheckTask =
+            _profileConsistencyCheckClient.GetResponse<ProfileExistsAndHasRoleResponse>(
+                new(createAppointmentDto.PatientId, "Patient"));
 
-        //TODO GROUP TASKS AND CHECK IF ANY IS FALSE
-        var httpClient = new HttpClient();
-        //TODO convert to MassTransit requests
-        var patientConsistencyCheck = await httpClient.PostAsJsonAsync(
-            "http://profile:80/helperservices/ensure-created",
-            new ProfileConsistencyCheckDto
+        var serviceConsistencyCheckTask = _serviceConsistencyCheckClient
+            .GetResponse<ServiceExistsAndBelongsToSpecializationResponse>(new(createAppointmentDto.ServiceId,
+                createAppointmentDto.SpecializationId));
+
+        var consistencyTasks = new List<Task>
+            { doctorGetTask, profileConsistencyCheckTask, serviceConsistencyCheckTask };
+
+        while (consistencyTasks.Any())
+        {
+            var finishedTask = await Task.WhenAny(consistencyTasks);
+            if (finishedTask is Task<Response<ConsistencyCheckResponse>> consistencyCheckTask)
             {
-                ProfileId = createAppointmentDto.PatientId,
-                Role = "Patient"
-            });
-        if (!patientConsistencyCheck.IsSuccessStatusCode)
-            throw new InconsistentDataException(
-                "The requested patient doesn't exist.");
+                (await consistencyCheckTask).Message.CheckIfDataIsConsistent();
+            }
 
-        //TODO convert to MassTransit requests
-        var serviceAndSpecializationConsistencyCheck =
-            await httpClient.GetAsync(
-                $"http://service:80/helperservices/ensure-exists/service/{createAppointmentDto.ServiceId}?specializationId={createAppointmentDto.SpecializationId}");
-        if (!serviceAndSpecializationConsistencyCheck.IsSuccessStatusCode)
-            throw new InconsistentDataException(
-                "The requested service either doesn't exist or belongs to a different specialization.");
+            else if (finishedTask is Task<Doctor?> doctor && await doctor is null)
+            {
+                throw new InconsistentDataException(
+                    "There is no doctor with requested id, specialization and office.");
+            }
+
+            else
+            {
+                throw new ArgumentException("The returned task type is not supported.");
+            }
+
+            consistencyTasks.Remove(finishedTask);
+        }
     }
 }

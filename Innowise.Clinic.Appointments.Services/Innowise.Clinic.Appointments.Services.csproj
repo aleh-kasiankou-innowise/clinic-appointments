@@ -21,4 +21,10 @@
       <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="7.0.0" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Reference Include="MassTransit.Abstractions">
+        <HintPath>..\..\..\..\..\.nuget\packages\masstransit.abstractions\8.0.13\lib\net6.0\MassTransit.Abstractions.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
 </Project>

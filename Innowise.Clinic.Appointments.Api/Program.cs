@@ -19,6 +19,7 @@ builder.Services.ConfigureSwagger();
 builder.Services.AddScoped<IAppointmentsService, AppointmentsService>();
 builder.Services.AddScoped<IAppointmentResultsService, AppointmentResultsService>();
 builder.Services.AddSingleton<ExceptionHandlingMiddleware>();
+builder.Services.ConfigureCrossServiceCommunication(builder.Configuration);
 
 var app = builder.Build();
 
