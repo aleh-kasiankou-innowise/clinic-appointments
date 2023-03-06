@@ -157,7 +157,13 @@ public class AppointmentsService : IAppointmentsService
         var appointment = await GetAppointment(id);
         if (appointment.PatientId != referrerPatientProfileId)
             throw new NotAllowedException("Patients are not allowed to edit appointments of other patients");
-        // TODO CALL TIMESLOT SERVICE TO RESERVE TIMESLOT
+        await UpdateAppointmentAsync(id, new(
+            id,
+            updatedAppointment.DoctorId,
+            updatedAppointment.AppointmentStart,
+            updatedAppointment.AppointmentEnd,
+            appointment.Status
+        ));
     }
 
     private async Task<Appointment> GetAppointment(Guid id)

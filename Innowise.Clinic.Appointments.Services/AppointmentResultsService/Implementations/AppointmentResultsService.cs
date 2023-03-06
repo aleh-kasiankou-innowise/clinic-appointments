@@ -87,12 +87,7 @@ public class AppointmentResultsService : IAppointmentResultsService
 
     private async Task<AppointmentResult> GetAppointmentResultByDoctorId(Guid id, Guid doctorId)
     {
-        // TODO MAKE METHODS ADHERE TO DRY PRINCIPLE
-        return await _dbContext.AppointmentResults
-                   .Include(ar => ar.Appointment)
-                   .ThenInclude(a => a.ReservedTimeSlot)
-                   .Include(x => x.Appointment)
-                   .ThenInclude(app => app.Doctor)
+        return await GetAppointmentResultsQuery()
                    .FirstOrDefaultAsync(x =>
                        x.AppointmentResultId == id && x.Appointment.DoctorId == doctorId) ??
                throw new EntityNotFoundException("The requested appointment doesn't exist.");
@@ -100,14 +95,18 @@ public class AppointmentResultsService : IAppointmentResultsService
 
     private async Task<AppointmentResult> GetAppointmentResultByPatientId(Guid id, Guid patientId)
     {
-        // TODO MAKE METHODS ADHERE TO DRY PRINCIPLE
-        return await _dbContext.AppointmentResults
-                   .Include(ar => ar.Appointment)
-                   .ThenInclude(a => a.ReservedTimeSlot)
-                   .Include(x => x.Appointment)
-                   .ThenInclude(app => app.Doctor)
+        return await GetAppointmentResultsQuery()
                    .FirstOrDefaultAsync(x =>
                        x.AppointmentResultId == id && x.Appointment.PatientId == patientId) ??
                throw new EntityNotFoundException("The requested appointment doesn't exist.");
+    }
+
+    private IQueryable<AppointmentResult> GetAppointmentResultsQuery()
+    {
+        return _dbContext.AppointmentResults
+            .Include(ar => ar.Appointment)
+            .ThenInclude(a => a.ReservedTimeSlot)
+            .Include(x => x.Appointment)
+            .ThenInclude(app => app.Doctor).AsQueryable();
     }
 }
