@@ -1,3 +1,5 @@
+using Innowise.Clinic.Shared.Enums;
+
 namespace Innowise.Clinic.Appointments.Persistence.Models;
 
 public class Appointment

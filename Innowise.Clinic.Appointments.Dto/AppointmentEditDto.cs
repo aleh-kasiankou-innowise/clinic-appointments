@@ -1,4 +1,4 @@
-using Innowise.Clinic.Appointments.Persistence.Models;
+using Innowise.Clinic.Shared.Enums;
 
 namespace Innowise.Clinic.Appointments.Dto;
 

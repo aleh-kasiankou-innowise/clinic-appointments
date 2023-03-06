@@ -3,8 +3,9 @@ using Innowise.Clinic.Appointments.Exceptions;
 using Innowise.Clinic.Appointments.Persistence;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
+using Innowise.Clinic.Shared.Enums;
 using Innowise.Clinic.Shared.Exceptions;
-using Innowise.Clinic.Shared.MassTransit.MessageTypes;
+using Innowise.Clinic.Shared.MassTransit.MessageTypes.Requests;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,19 +16,22 @@ public class AppointmentsService : IAppointmentsService
     // TODO ADD SORTING
 
     private readonly AppointmentsDbContext _dbContext;
-    private readonly IRequestClient<TimeSlotReservationRequest> _reservationClient;
+    private readonly IRequestClient<TimeSlotReservationRequest> _timeslotReservationClient;
+    private readonly IRequestClient<UpdateAppointmentTimeslotRequest> _timeslotUpdateClient;
     private readonly IRequestClient<ProfileExistsAndHasRoleRequest> _profileConsistencyCheckClient;
     private readonly IRequestClient<ServiceExistsAndBelongsToSpecializationRequest> _serviceConsistencyCheckClient;
 
     public AppointmentsService(AppointmentsDbContext dbContext,
         IRequestClient<TimeSlotReservationRequest> reservationClient,
         IRequestClient<ProfileExistsAndHasRoleRequest> profileConsistencyCheckClient,
-        IRequestClient<ServiceExistsAndBelongsToSpecializationRequest> serviceConsistencyCheckClient)
+        IRequestClient<ServiceExistsAndBelongsToSpecializationRequest> serviceConsistencyCheckClient,
+        IRequestClient<UpdateAppointmentTimeslotRequest> timeslotUpdateClient)
     {
         _dbContext = dbContext;
-        _reservationClient = reservationClient;
+        _timeslotReservationClient = reservationClient;
         _profileConsistencyCheckClient = profileConsistencyCheckClient;
         _serviceConsistencyCheckClient = serviceConsistencyCheckClient;
+        _timeslotUpdateClient = timeslotUpdateClient;
     }
 
     public async Task<IEnumerable<ViewAppointmentHistoryDto>> GetPatientAppointmentHistory(Guid patientId)
@@ -103,7 +107,7 @@ public class AppointmentsService : IAppointmentsService
     public async Task<Guid> CreateAppointmentAsync(CreateAppointmentDto createAppointmentDto)
     {
         await EnsureDataConsistency(createAppointmentDto);
-        var timeSlotReservationResult = await _reservationClient.GetResponse<TimeSlotReservationResponse>(new(
+        var timeSlotReservationResult = await _timeslotReservationClient.GetResponse<TimeSlotReservationResponse>(new(
             createAppointmentDto.DoctorId,
             createAppointmentDto.AppointmentStart,
             createAppointmentDto.AppointmentFinish)
@@ -132,8 +136,7 @@ public class AppointmentsService : IAppointmentsService
         }
 
         throw new ReservationFailedException(timeSlotReservationResult.Message.FailReason ??
-                                             throw new ArgumentException("No fail reason provided",
-                                                 "createAppointmentDto"));
+                                             throw new MissingErrorMessageException());
     }
 
     public async Task<Guid> CreateAppointmentAsync(CreateAppointmentDto createAppointmentDto,
@@ -148,7 +151,29 @@ public class AppointmentsService : IAppointmentsService
     public async Task UpdateAppointmentAsync(Guid id, AppointmentEditTimeAndStatusDto updatedAppointment)
     {
         var appointment = await GetAppointment(id);
-        // TODO CALL TIMESLOT SERVICE TO RESERVE TIMESLOT
+        if (appointment.ReservedTimeSlot.AppointmentStart != updatedAppointment.AppointmentStart &&
+            appointment.ReservedTimeSlot.AppointmentFinish != updatedAppointment.AppointmentEnd)
+        {
+            var timeslotUpdateResponse = await _timeslotUpdateClient.GetResponse<UpdateAppointmentTimeslotResponse>(
+                new(id, new(
+                    updatedAppointment.DoctorId,
+                    updatedAppointment.AppointmentStart,
+                    updatedAppointment.AppointmentEnd)));
+
+            if (!timeslotUpdateResponse.Message.IsSuccessful)
+            {
+                var message = timeslotUpdateResponse.Message.FailReason ??
+                              throw new MissingErrorMessageException();
+                throw new ReservationFailedException(message);
+            }
+
+            appointment.ReservedTimeSlot.AppointmentStart = updatedAppointment.AppointmentStart;
+            appointment.ReservedTimeSlot.AppointmentFinish = updatedAppointment.AppointmentEnd;
+        }
+
+        appointment.Status = updatedAppointment.AppointmentStatus;
+        _dbContext.Appointments.Update(appointment);
+        await _dbContext.SaveChangesAsync();
     }
 
     public async Task UpdateAppointmentAsync(Guid id, AppointmentEditTimeDto updatedAppointment,
@@ -168,7 +193,7 @@ public class AppointmentsService : IAppointmentsService
 
     private async Task<Appointment> GetAppointment(Guid id)
     {
-        return await _dbContext.Appointments.FirstOrDefaultAsync(x => x.AppointmentId == id) ??
+        return await _dbContext.Appointments.FindAsync(id) ??
                throw new EntityNotFoundException("The requested appointment doesn't exist");
     }
 

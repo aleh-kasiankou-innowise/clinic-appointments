@@ -18,10 +18,9 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Innowise.Clinic.Appointments.Shared\Innowise.Clinic.Appointments.Shared.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
+      <Reference Include="Innowise.Clinic.Shared">
+        <HintPath>..\..\..\..\..\.nuget\packages\innowise.clinic.shared\0.0.4\lib\net6.0\Innowise.Clinic.Shared.dll</HintPath>
+      </Reference>
       <Reference Include="Microsoft.EntityFrameworkCore.Relational">
         <HintPath>..\..\..\..\..\.nuget\packages\microsoft.entityframeworkcore.relational\7.0.3\lib\net6.0\Microsoft.EntityFrameworkCore.Relational.dll</HintPath>
       </Reference>
