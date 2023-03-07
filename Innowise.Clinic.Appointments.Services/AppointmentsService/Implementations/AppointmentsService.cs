@@ -3,6 +3,7 @@ using Innowise.Clinic.Appointments.Exceptions;
 using Innowise.Clinic.Appointments.Persistence;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
+using Innowise.Clinic.Shared.Constants;
 using Innowise.Clinic.Shared.Enums;
 using Innowise.Clinic.Shared.Exceptions;
 using Innowise.Clinic.Shared.MassTransit.MessageTypes.Requests;
@@ -206,7 +207,7 @@ public class AppointmentsService : IAppointmentsService
 
         var profileConsistencyCheckTask =
             _profileConsistencyCheckClient.GetResponse<ProfileExistsAndHasRoleResponse>(
-                new(createAppointmentDto.PatientId, "Patient"));
+                new(createAppointmentDto.PatientId, UserRoles.Patient));
 
         var serviceConsistencyCheckTask = _serviceConsistencyCheckClient
             .GetResponse<ServiceExistsAndBelongsToSpecializationResponse>(new(createAppointmentDto.ServiceId,

@@ -1,4 +1,4 @@
-using Innowise.Clinic.Appointments.RequestPipeline.Constants;
+using Innowise.Clinic.Shared.Constants;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 

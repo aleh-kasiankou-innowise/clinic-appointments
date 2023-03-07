@@ -13,6 +13,9 @@
     </ItemGroup>
 
     <ItemGroup>
+      <Reference Include="Innowise.Clinic.Shared">
+        <HintPath>..\..\..\..\..\.nuget\packages\innowise.clinic.shared\0.0.9\lib\net6.0\Innowise.Clinic.Shared.dll</HintPath>
+      </Reference>
       <Reference Include="Microsoft.IdentityModel.Tokens">
         <HintPath>..\..\..\..\..\.nuget\packages\microsoft.identitymodel.tokens\6.21.0\lib\net6.0\Microsoft.IdentityModel.Tokens.dll</HintPath>
       </Reference>

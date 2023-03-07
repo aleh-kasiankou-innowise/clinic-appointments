@@ -1,8 +1,8 @@
 using Innowise.Clinic.Appointments.Dto;
 using Innowise.Clinic.Appointments.Exceptions;
 using Innowise.Clinic.Appointments.RequestPipeline;
-using Innowise.Clinic.Appointments.RequestPipeline.Constants;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
+using Innowise.Clinic.Shared.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,8 +20,8 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpGet("history/{patientId:guid}")]
-    [Authorize(Roles = "Doctor,Patient")]
-    [ProvideAccessToOwnProfileOnlyFilter("Patient")]
+    [Authorize(Roles = $"{UserRoles.Doctor},{UserRoles.Patient}")]
+    [ProvideAccessToOwnProfileOnlyFilter($"{UserRoles.Patient}")]
     public async Task<ActionResult<IEnumerable<ViewAppointmentHistoryDto>>> GetPatientAppointmentHistory(
         [FromRoute] Guid patientId)
     {
@@ -29,18 +29,19 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Doctor,Receptionist")]
+    [Authorize(Roles = $"{UserRoles.Doctor},{UserRoles.Receptionist}")]
     public async Task<ActionResult<IEnumerable<AppointmentInfoDto>>> GetListOfAppointments(
         [FromBody] AppointmentFilterBaseDto filter)
     {
         // TODO USE QUERY PARAMS INSTEAD OF BODY
 
-        if (User.IsInRole("Doctor") && filter is AppointmentDoctorFilterDto doctorFilterDto)
+        if (User.IsInRole(UserRoles.Doctor) && filter is AppointmentDoctorFilterDto doctorFilterDto)
         {
             return Ok(await _appointmentsService.GetDoctorsAppointmentsAsync(doctorFilterDto));
         }
 
-        if (User.IsInRole("Receptionist") && filter is AppointmentReceptionistFilterDto receptionistFilterDto)
+        if (User.IsInRole(UserRoles.Receptionist) &&
+            filter is AppointmentReceptionistFilterDto receptionistFilterDto)
         {
             return Ok(await _appointmentsService.GetAppointmentsAsync(receptionistFilterDto));
         }
@@ -49,11 +50,11 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Patient,Receptionist")]
+    [Authorize(Roles = $"{UserRoles.Patient},{UserRoles.Receptionist}")]
     public async Task<ActionResult<Guid>> CreateAppointment([FromBody] CreateAppointmentDto newAppointment)
     {
         Guid createdAppointmentId;
-        if (User.IsInRole("Patient"))
+        if (User.IsInRole(UserRoles.Patient))
         {
             createdAppointmentId =
                 await _appointmentsService.CreateAppointmentAsync(newAppointment, ExtractUserProfileId());
@@ -67,11 +68,11 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Patient,Receptionist")]
+    [Authorize(Roles = $"{UserRoles.Patient},{UserRoles.Receptionist}")]
     public async Task<IActionResult> UpdateAppointment([FromRoute] Guid id,
         [FromBody] AppointmentEditTimeDto updatedAppointment)
     {
-        if (User.IsInRole("Patient"))
+        if (User.IsInRole(UserRoles.Patient))
         {
             if (updatedAppointment.GetType() == typeof(AppointmentEditTimeDto))
             {

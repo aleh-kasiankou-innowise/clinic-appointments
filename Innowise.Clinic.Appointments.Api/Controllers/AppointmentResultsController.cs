@@ -1,5 +1,6 @@
 using Innowise.Clinic.Appointments.Dto;
 using Innowise.Clinic.Appointments.Services.AppointmentResultsService.Interfaces;
+using Innowise.Clinic.Shared.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,7 +18,7 @@ public class AppointmentResultsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Roles = "Doctor,Patient")]
+    [Authorize(Roles = $"{UserRoles.Doctor},{UserRoles.Patient}")]
     public async Task<ActionResult<ViewAppointmentResultDto>> GetAppointmentResult([FromRoute] Guid id)
     {
         ViewAppointmentResultDto appointment;
@@ -35,14 +36,15 @@ public class AppointmentResultsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = $"{UserRoles.Doctor}")]
     public async Task<ActionResult<Guid>> CreateAppointmentResult([FromBody] CreateAppointmentResultDto newAppointment)
     {
-        return Ok((await _appointmentResultsService.CreateAppointmentResult(newAppointment, GetProfileAccessId())).ToString());
+        return Ok((await _appointmentResultsService.CreateAppointmentResult(newAppointment, GetProfileAccessId()))
+            .ToString());
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Doctor")]
+    [Authorize(Roles = $"{UserRoles.Doctor}")]
     public async Task<ActionResult<Guid>> UpdateAppointmentResult([FromRoute] Guid id,
         [FromBody] AppointmentResultEditDto updatedAppointment)
     {
@@ -52,7 +54,7 @@ public class AppointmentResultsController : ControllerBase
 
     private Guid GetProfileAccessId()
     {
-        return Guid.Parse(User.Claims.FirstOrDefault(x => x.Type == "access-to-profiles")?.Value ??
+        return Guid.Parse(User.Claims.FirstOrDefault(x => x.Type == JwtClaimTypes.LimitedAccessToProfileClaim)?.Value ??
                           throw new InvalidOperationException());
     }
 }
