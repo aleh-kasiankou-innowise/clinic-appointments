@@ -32,7 +32,10 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
 
     var context = services.GetRequiredService<AppointmentsDbContext>();
-    if ((await context.Database.GetPendingMigrationsAsync()).Any()) await context.Database.MigrateAsync();
+    if ((await context.Database.GetPendingMigrationsAsync()).Any())
+    {
+        await context.Database.MigrateAsync();
+    }
 }
 
 app.UseHttpsRedirection();

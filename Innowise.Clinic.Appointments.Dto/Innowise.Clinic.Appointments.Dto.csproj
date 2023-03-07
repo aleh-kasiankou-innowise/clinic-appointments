@@ -12,4 +12,8 @@
       </Reference>
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Innowise.Clinic.Shared" Version="0.0.10" />
+    </ItemGroup>
+
 </Project>
