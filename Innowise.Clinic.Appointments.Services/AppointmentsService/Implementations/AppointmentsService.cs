@@ -1,44 +1,47 @@
+using System.Linq.Expressions;
 using Innowise.Clinic.Appointments.Dto;
 using Innowise.Clinic.Appointments.Exceptions;
-using Innowise.Clinic.Appointments.Persistence;
 using Innowise.Clinic.Appointments.Persistence.Models;
+using Innowise.Clinic.Appointments.Persistence.Repositories.Interfaces;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
 using Innowise.Clinic.Shared.Constants;
 using Innowise.Clinic.Shared.Enums;
 using Innowise.Clinic.Shared.Exceptions;
 using Innowise.Clinic.Shared.MassTransit.MessageTypes.Requests;
 using MassTransit;
-using Microsoft.EntityFrameworkCore;
 
 namespace Innowise.Clinic.Appointments.Services.AppointmentsService.Implementations;
 
 public class AppointmentsService : IAppointmentsService
 {
     // TODO ADD SORTING
-
-    private readonly AppointmentsDbContext _dbContext;
+    private readonly IAppointmentsRepository _appointmentsRepository;
+    private readonly IDoctorRepository _doctorRepository;
     private readonly IRequestClient<TimeSlotReservationRequest> _timeslotReservationClient;
     private readonly IRequestClient<UpdateAppointmentTimeslotRequest> _timeslotUpdateClient;
     private readonly IRequestClient<ProfileExistsAndHasRoleRequest> _profileConsistencyCheckClient;
     private readonly IRequestClient<ServiceExistsAndBelongsToSpecializationRequest> _serviceConsistencyCheckClient;
 
-    public AppointmentsService(AppointmentsDbContext dbContext,
-        IRequestClient<TimeSlotReservationRequest> reservationClient,
+    public AppointmentsService(IRequestClient<TimeSlotReservationRequest> reservationClient,
         IRequestClient<ProfileExistsAndHasRoleRequest> profileConsistencyCheckClient,
         IRequestClient<ServiceExistsAndBelongsToSpecializationRequest> serviceConsistencyCheckClient,
-        IRequestClient<UpdateAppointmentTimeslotRequest> timeslotUpdateClient)
+        IRequestClient<UpdateAppointmentTimeslotRequest> timeslotUpdateClient,
+        IAppointmentsRepository appointmentsRepository, IDoctorRepository doctorRepository)
     {
-        _dbContext = dbContext;
         _timeslotReservationClient = reservationClient;
         _profileConsistencyCheckClient = profileConsistencyCheckClient;
         _serviceConsistencyCheckClient = serviceConsistencyCheckClient;
         _timeslotUpdateClient = timeslotUpdateClient;
+        _appointmentsRepository = appointmentsRepository;
+        _doctorRepository = doctorRepository;
     }
 
     public async Task<IEnumerable<ViewAppointmentHistoryDto>> GetPatientAppointmentHistory(Guid patientId)
     {
-        return await _dbContext.Appointments.Where(x => x.PatientId == patientId)
-            .OrderByDescending(x => x.ReservedTimeSlot.AppointmentStart).Select(x => new ViewAppointmentHistoryDto
+        var appointments = await _appointmentsRepository.GetAppointmentsListingAsync(x => x.PatientId == patientId);
+
+        return appointments.OrderByDescending(x => x.ReservedTimeSlot.AppointmentStart).Select(x =>
+            new ViewAppointmentHistoryDto
             {
                 AppointmentId = x.AppointmentId,
                 AppointmentStart = x.ReservedTimeSlot.AppointmentStart,
@@ -47,34 +50,33 @@ public class AppointmentsService : IAppointmentsService
                 PatientId = x.PatientId,
                 ServiceId = x.ServiceId,
                 AppointmentResultId = x.AppointmentResultId
-            }).ToListAsync();
+            });
     }
 
     public async Task<IEnumerable<AppointmentDoctorInfoDto>> GetDoctorsAppointmentsAsync(
         AppointmentDoctorFilterDto appointmentDoctorFilterDto)
     {
-        return await _dbContext.Appointments.Where(x =>
-                x.DoctorId == appointmentDoctorFilterDto.DoctorIdFilter && x.ReservedTimeSlot.AppointmentStart.Date ==
-                appointmentDoctorFilterDto.DayFilter.Date)
-            .Select(x => new AppointmentDoctorInfoDto
-            {
-                AppointmentId = x.AppointmentId,
-                AppointmentStart = x.ReservedTimeSlot.AppointmentStart,
-                AppointmentFinish = x.ReservedTimeSlot.AppointmentFinish,
-                AppointmentStatus = x.Status,
-                PatientId = x.PatientId,
-                ServiceId = x.ServiceId,
-                AppointmentResultId = x.AppointmentResultId
-            }).ToListAsync();
+        var appointments = await _appointmentsRepository.GetAppointmentsListingAsync(x =>
+            x.DoctorId == appointmentDoctorFilterDto.DoctorIdFilter && x.ReservedTimeSlot.AppointmentStart.Date ==
+            appointmentDoctorFilterDto.DayFilter.Date);
+
+        return appointments.Select(x => new AppointmentDoctorInfoDto
+        {
+            AppointmentId = x.AppointmentId,
+            AppointmentStart = x.ReservedTimeSlot.AppointmentStart,
+            AppointmentFinish = x.ReservedTimeSlot.AppointmentFinish,
+            AppointmentStatus = x.Status,
+            PatientId = x.PatientId,
+            ServiceId = x.ServiceId,
+            AppointmentResultId = x.AppointmentResultId
+        });
     }
 
     public async Task<IEnumerable<AppointmentInfoDto>> GetAppointmentsAsync(
         AppointmentReceptionistFilterDto appointmentReceptionistFilterDto)
     {
-        var query = _dbContext.Appointments.Where(x =>
-            x.ReservedTimeSlot.AppointmentStart.Date == appointmentReceptionistFilterDto.DayFilter.Date);
-
-        if (appointmentReceptionistFilterDto.DoctorIdFilter != null)
+        // use expression trees for filters
+        /*if (appointmentReceptionistFilterDto.DoctorIdFilter != null)
         {
             query = query.Where(x => x.DoctorId == appointmentReceptionistFilterDto.DoctorIdFilter);
         }
@@ -92,9 +94,14 @@ public class AppointmentsService : IAppointmentsService
         if (appointmentReceptionistFilterDto.OfficeIdFilter != null)
         {
             query = query.Where(x => x.Doctor.OfficeId == appointmentReceptionistFilterDto.OfficeIdFilter);
-        }
+        }*/
+        
+        Expression<Func<Appointment, bool>> filter = x => true;
+        var appointments = await _appointmentsRepository.GetAppointmentsListingAsync(x =>
+            x.ReservedTimeSlot.AppointmentStart.Date == appointmentReceptionistFilterDto.DayFilter.Date);
 
-        return await query.Select(x => new AppointmentInfoDto
+
+        return appointments.Select(x => new AppointmentInfoDto
         {
             AppointmentId = x.AppointmentId,
             AppointmentStart = x.ReservedTimeSlot.AppointmentStart,
@@ -102,7 +109,7 @@ public class AppointmentsService : IAppointmentsService
             AppointmentStatus = x.Status,
             PatientId = x.PatientId,
             ServiceId = x.ServiceId
-        }).ToListAsync();
+        });
     }
 
     public async Task<Guid> CreateAppointmentAsync(CreateAppointmentDto createAppointmentDto)
@@ -130,9 +137,8 @@ public class AppointmentsService : IAppointmentsService
                 Status = AppointmentStatus.Created,
                 ReservedTimeSlot = newTimeSlotReservation,
             };
-            await _dbContext.ReservedTimeSlots.AddAsync(newTimeSlotReservation);
-            await _dbContext.Appointments.AddAsync(newAppointment);
-            await _dbContext.SaveChangesAsync();
+
+            await _appointmentsRepository.CreateAppointmentAsync(newAppointment);
             return newAppointment.AppointmentId;
         }
 
@@ -151,7 +157,7 @@ public class AppointmentsService : IAppointmentsService
 
     public async Task UpdateAppointmentAsync(Guid id, AppointmentEditTimeAndStatusDto updatedAppointment)
     {
-        var appointment = await GetAppointment(id);
+        var appointment = await _appointmentsRepository.GetAppointmentAsync(id);
         if (appointment.ReservedTimeSlot.AppointmentStart != updatedAppointment.AppointmentStart &&
             appointment.ReservedTimeSlot.AppointmentFinish != updatedAppointment.AppointmentEnd)
         {
@@ -173,14 +179,14 @@ public class AppointmentsService : IAppointmentsService
         }
 
         appointment.Status = updatedAppointment.AppointmentStatus;
-        _dbContext.Appointments.Update(appointment);
-        await _dbContext.SaveChangesAsync();
+        await _appointmentsRepository.UpdateAppointmentAsync(appointment);
     }
 
     public async Task UpdateAppointmentAsync(Guid id, AppointmentEditTimeDto updatedAppointment,
         Guid referrerPatientProfileId)
     {
-        var appointment = await GetAppointment(id);
+        // TODO AVOID DOUBLE DB CALL
+        var appointment = await _appointmentsRepository.GetAppointmentAsync(id);
         if (appointment.PatientId != referrerPatientProfileId)
             throw new NotAllowedException("Patients are not allowed to edit appointments of other patients");
         await UpdateAppointmentAsync(id, new(
@@ -192,15 +198,9 @@ public class AppointmentsService : IAppointmentsService
         ));
     }
 
-    private async Task<Appointment> GetAppointment(Guid id)
-    {
-        return await _dbContext.Appointments.FindAsync(id) ??
-               throw new EntityNotFoundException("The requested appointment doesn't exist");
-    }
-
     private async Task EnsureDataConsistency(CreateAppointmentDto createAppointmentDto)
     {
-        var doctorGetTask = _dbContext.Doctors.FirstOrDefaultAsync(x =>
+        var doctorGetTask = _doctorRepository.GetDoctorAsync(x =>
             x.DoctorId == createAppointmentDto.DoctorId &&
             x.SpecializationId == createAppointmentDto.SpecializationId &&
             x.OfficeId == createAppointmentDto.OfficeId);

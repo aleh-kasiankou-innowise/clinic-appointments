@@ -1,25 +1,28 @@
 using Innowise.Clinic.Appointments.Dto;
-using Innowise.Clinic.Appointments.Persistence;
 using Innowise.Clinic.Appointments.Persistence.Models;
+using Innowise.Clinic.Appointments.Persistence.Repositories.Interfaces;
 using Innowise.Clinic.Appointments.Services.AppointmentResultsService.Interfaces;
-using Innowise.Clinic.Shared.Exceptions;
-using Microsoft.EntityFrameworkCore;
+using MassTransit;
 
 namespace Innowise.Clinic.Appointments.Services.AppointmentResultsService.Implementations;
 
 public class AppointmentResultsService : IAppointmentResultsService
 {
-    private readonly AppointmentsDbContext _dbContext;
+    private readonly IAppointmentResultsRepository _appointmentResultsRepository;
+    private readonly IBus _bus;
 
-    public AppointmentResultsService(AppointmentsDbContext dbContext)
+    public AppointmentResultsService(IBus bus, IAppointmentResultsRepository appointmentResultsRepository)
     {
-        _dbContext = dbContext;
+        _bus = bus;
+        _appointmentResultsRepository = appointmentResultsRepository;
     }
-
 
     public async Task<ViewAppointmentResultDto> GetDoctorAppointmentResult(Guid id, Guid doctorId)
     {
-        var appointmentResult = await GetAppointmentResultByDoctorId(id, doctorId);
+        // todo remove hardcoded expression
+        var appointmentResult = await _appointmentResultsRepository.GetAppointmentResult(x =>
+            x.AppointmentResultId == id && x.Appointment.DoctorId == doctorId);
+
         return new ViewAppointmentResultDto
         {
             AppointmentResultId = appointmentResult.AppointmentResultId,
@@ -36,7 +39,9 @@ public class AppointmentResultsService : IAppointmentResultsService
 
     public async Task<ViewAppointmentResultDto> GetPatientAppointmentResult(Guid id, Guid patientId)
     {
-        var appointmentResult = await GetAppointmentResultByPatientId(id, patientId);
+        // todo remove hardcoded expression
+        var appointmentResult = await _appointmentResultsRepository.GetAppointmentResult(x =>
+            x.AppointmentResultId == id && x.Appointment.PatientId == patientId);
         return new ViewAppointmentResultDto
         {
             AppointmentResultId = appointmentResult.AppointmentResultId,
@@ -53,60 +58,34 @@ public class AppointmentResultsService : IAppointmentResultsService
 
     public async Task<Guid> CreateAppointmentResult(CreateAppointmentResultDto newAppointmentResult, Guid doctorId)
     {
-        var appointment = await _dbContext.Appointments.FirstOrDefaultAsync(a =>
-                              a.AppointmentId == newAppointmentResult.AppointmentId && a.DoctorId == doctorId) ??
-                          throw new EntityNotFoundException("The requested appointment doesn't exist.");
-
         var appointmentResult = new AppointmentResult
         {
             Complaints = newAppointmentResult.Complaints,
             Conclusion = newAppointmentResult.Conclusion,
-            Recommendations = newAppointmentResult.Recommendations
+            Recommendations = newAppointmentResult.Recommendations,
+            AppointmentId = newAppointmentResult.AppointmentId
         };
 
-        appointment.AppointmentResult = appointmentResult;
+        await _appointmentResultsRepository.CreateAppointmentResult(appointmentResult);
 
-        _dbContext.AppointmentResults.Add(appointmentResult);
-        _dbContext.Update(appointment);
-
-        await _dbContext.SaveChangesAsync();
+        // need patient email and full appointment info
+        // todo send event with requested info
 
         return appointmentResult.AppointmentResultId;
     }
 
     public async Task UpdateAppointmentResult(Guid id, AppointmentResultEditDto updatedAppointmentResult, Guid doctorId)
     {
-        var appointment = await GetAppointmentResultByDoctorId(id, doctorId);
-        appointment.Complaints = updatedAppointmentResult.Complaints;
-        appointment.Conclusion = updatedAppointmentResult.Conclusion;
-        appointment.Recommendations = updatedAppointmentResult.Recommendations;
+        var appointmentResult = new AppointmentResult
+        {
+            AppointmentResultId = id,
+            Complaints = updatedAppointmentResult.Complaints,
+            Conclusion = updatedAppointmentResult.Conclusion,
+            Recommendations = updatedAppointmentResult.Recommendations
+        };
 
-        _dbContext.Update(appointment);
-        await _dbContext.SaveChangesAsync();
-    }
+        await _appointmentResultsRepository.UpdateAppointmentResult(appointmentResult);
 
-    private async Task<AppointmentResult> GetAppointmentResultByDoctorId(Guid id, Guid doctorId)
-    {
-        return await GetAppointmentResultsQuery()
-                   .FirstOrDefaultAsync(x =>
-                       x.AppointmentResultId == id && x.Appointment.DoctorId == doctorId) ??
-               throw new EntityNotFoundException("The requested appointment doesn't exist.");
-    }
-
-    private async Task<AppointmentResult> GetAppointmentResultByPatientId(Guid id, Guid patientId)
-    {
-        return await GetAppointmentResultsQuery()
-                   .FirstOrDefaultAsync(x =>
-                       x.AppointmentResultId == id && x.Appointment.PatientId == patientId) ??
-               throw new EntityNotFoundException("The requested appointment doesn't exist.");
-    }
-
-    private IQueryable<AppointmentResult> GetAppointmentResultsQuery()
-    {
-        return _dbContext.AppointmentResults
-            .Include(ar => ar.Appointment)
-            .ThenInclude(a => a.ReservedTimeSlot)
-            .Include(x => x.Appointment)
-            .ThenInclude(app => app.Doctor).AsQueryable();
+        // todo send event with requested info
     }
 }
