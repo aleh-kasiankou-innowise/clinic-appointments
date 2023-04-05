@@ -18,7 +18,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Innowise.Clinic.Shared" Version="0.0.24" />
+      <PackageReference Include="Innowise.Clinic.Shared" Version="0.0.48" />
       <PackageReference Include="MassTransit" Version="8.0.13" />
       <PackageReference Include="MassTransit.RabbitMQ" Version="8.0.13" />
       <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="7.0.0" />

@@ -1,4 +1,6 @@
 using Innowise.Clinic.Appointments.Dto;
+using Innowise.Clinic.Appointments.Persistence.Models;
+using Innowise.Clinic.Shared.Services.FiltrationService.Abstractions;
 
 namespace Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
 
@@ -7,10 +9,10 @@ public interface IAppointmentsService
     Task<IEnumerable<ViewAppointmentHistoryDto>> GetPatientAppointmentHistory(Guid patientId);
 
     Task<IEnumerable<AppointmentDoctorInfoDto>> GetDoctorsAppointmentsAsync(
-        AppointmentDoctorFilterDto appointmentDoctorFilterDto);
+        CompoundFilter<Appointment> appointmentDoctorFilterDto);
 
     Task<IEnumerable<AppointmentInfoDto>> GetAppointmentsAsync(
-        AppointmentReceptionistFilterDto appointmentReceptionistFilterDto);
+        CompoundFilter<Appointment> appointmentReceptionistFilterDto);
 
     Task<Guid> CreateAppointmentAsync(CreateAppointmentDto createAppointmentDto);
 

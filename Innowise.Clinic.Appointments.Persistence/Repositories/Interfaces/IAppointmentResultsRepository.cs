@@ -5,7 +5,7 @@ namespace Innowise.Clinic.Appointments.Persistence.Repositories.Interfaces;
 
 public interface IAppointmentResultsRepository
 {
-    Task<AppointmentResult> GetAppointmentResult(Expression<Func<AppointmentResult, bool>> filter);
-    Task<AppointmentResult> CreateAppointmentResult(AppointmentResult newAppointmentResult);
-    Task<AppointmentResult> UpdateAppointmentResult(AppointmentResult appointmentResult);
+    Task<AppointmentResult> GetAppointmentResultAsync(Expression<Func<AppointmentResult, bool>> filter);
+    Task<Guid> CreateAppointmentResultAsync(AppointmentResult newAppointmentResult);
+    Task UpdateAppointmentResultAsync(AppointmentResult appointmentResult);
 }

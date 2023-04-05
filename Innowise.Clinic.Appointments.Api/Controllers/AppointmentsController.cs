@@ -1,8 +1,10 @@
 using Innowise.Clinic.Appointments.Dto;
 using Innowise.Clinic.Appointments.Exceptions;
+using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.RequestPipeline;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
 using Innowise.Clinic.Shared.Constants;
+using Innowise.Clinic.Shared.Services.FiltrationService.Abstractions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -28,25 +30,22 @@ public class AppointmentsController : ControllerBase
         return Ok(await _appointmentsService.GetPatientAppointmentHistory(patientId));
     }
 
-    [HttpGet]
+    [HttpPost("listing")]
     [Authorize(Roles = $"{UserRoles.Doctor},{UserRoles.Receptionist}")]
     public async Task<ActionResult<IEnumerable<AppointmentInfoDto>>> GetListOfAppointments(
-        [FromBody] AppointmentFilterBaseDto filter)
+        [FromBody] CompoundFilter<Appointment> filter)
     {
-        // TODO USE QUERY PARAMS INSTEAD OF BODY
-
-        if (User.IsInRole(UserRoles.Doctor) && filter is AppointmentDoctorFilterDto doctorFilterDto)
+        if (User.IsInRole(UserRoles.Doctor))
         {
-            return Ok(await _appointmentsService.GetDoctorsAppointmentsAsync(doctorFilterDto));
+            return Ok(await _appointmentsService.GetDoctorsAppointmentsAsync(filter));
         }
 
-        if (User.IsInRole(UserRoles.Receptionist) &&
-            filter is AppointmentReceptionistFilterDto receptionistFilterDto)
+        else if (User.IsInRole(UserRoles.Receptionist))
         {
-            return Ok(await _appointmentsService.GetAppointmentsAsync(receptionistFilterDto));
+            return Ok(await _appointmentsService.GetAppointmentsAsync(filter));
         }
 
-        return BadRequest("The applied filters are incorrect.");
+        return Unauthorized();
     }
 
     [HttpPost]

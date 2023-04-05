@@ -20,7 +20,7 @@ public class AppointmentResultsService : IAppointmentResultsService
     public async Task<ViewAppointmentResultDto> GetDoctorAppointmentResult(Guid id, Guid doctorId)
     {
         // todo remove hardcoded expression
-        var appointmentResult = await _appointmentResultsRepository.GetAppointmentResult(x =>
+        var appointmentResult = await _appointmentResultsRepository.GetAppointmentResultAsync(x =>
             x.AppointmentResultId == id && x.Appointment.DoctorId == doctorId);
 
         return new ViewAppointmentResultDto
@@ -40,7 +40,7 @@ public class AppointmentResultsService : IAppointmentResultsService
     public async Task<ViewAppointmentResultDto> GetPatientAppointmentResult(Guid id, Guid patientId)
     {
         // todo remove hardcoded expression
-        var appointmentResult = await _appointmentResultsRepository.GetAppointmentResult(x =>
+        var appointmentResult = await _appointmentResultsRepository.GetAppointmentResultAsync(x =>
             x.AppointmentResultId == id && x.Appointment.PatientId == patientId);
         return new ViewAppointmentResultDto
         {
@@ -66,7 +66,7 @@ public class AppointmentResultsService : IAppointmentResultsService
             AppointmentId = newAppointmentResult.AppointmentId
         };
 
-        await _appointmentResultsRepository.CreateAppointmentResult(appointmentResult);
+        await _appointmentResultsRepository.CreateAppointmentResultAsync(appointmentResult);
 
         // need patient email and full appointment info
         // todo send event with requested info
@@ -84,7 +84,7 @@ public class AppointmentResultsService : IAppointmentResultsService
             Recommendations = updatedAppointmentResult.Recommendations
         };
 
-        await _appointmentResultsRepository.UpdateAppointmentResult(appointmentResult);
+        await _appointmentResultsRepository.UpdateAppointmentResultAsync(appointmentResult);
 
         // todo send event with requested info
     }

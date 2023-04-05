@@ -1,8 +1,9 @@
+using Innowise.Clinic.Shared.BaseClasses;
 using Innowise.Clinic.Shared.Enums;
 
 namespace Innowise.Clinic.Appointments.Persistence.Models;
 
-public class Appointment
+public class Appointment : IEntity
 {
     public Guid AppointmentId { get; set; }
     public Guid DoctorId { get; set; }

@@ -1,98 +1,43 @@
 ﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+using FluentMigrator;
 
 #nullable disable
 
 namespace Innowise.Clinic.Appointments.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class Init : Migration
+    [Migration(0, "Creating Doctor, ReservedTimeSlot, AppointmentResult and Appointment tables")]
+    public class Init : AutoReversingMigration
     {
         /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
+        public override void Up()
         {
-            migrationBuilder.CreateTable(
-                name: "AppointmentResults",
-                columns: table => new
-                {
-                    AppointmentResultId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Complaints = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Conclusion = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Recommendations = table.Column<string>(type: "nvarchar(max)", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AppointmentResults", x => x.AppointmentResultId);
-                });
+            Create.Table("Doctor")
+                .WithColumn("DoctorId").AsGuid().PrimaryKey()
+                .WithColumn("SpecializationId").AsGuid()
+                .WithColumn("OfficeId").AsGuid();
+            
+            Create.Table("ReservedTimeSlot")
+                .WithColumn("ReservedTimeSlotId").AsGuid().PrimaryKey()
+                .WithColumn("AppointmentStart").AsDateTime2()
+                .WithColumn("AppointmentFinish").AsDateTime2();
+            
+            Create.Table("AppointmentResult")
+                .WithColumn("AppointmentResultId").AsGuid().PrimaryKey()
+                .WithColumn("Complaints").AsString(500)
+                .WithColumn("Conclusion").AsString(500)
+                .WithColumn("Recommendations").AsString(500);
 
-            migrationBuilder.CreateTable(
-                name: "ReservedTimeSlots",
-                columns: table => new
-                {
-                    ReservedTimeSlotId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    AppointmentStart = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    AppointmentFinish = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ReservedTimeSlots", x => x.ReservedTimeSlotId);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Appointments",
-                columns: table => new
-                {
-                    AppointmentId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    DoctorId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SpecializationId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ServiceId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    OfficeId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PatientId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Status = table.Column<int>(type: "int", nullable: false),
-                    ReservedTimeSlotId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    AppointmentResultId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Appointments", x => x.AppointmentId);
-                    table.ForeignKey(
-                        name: "FK_Appointments_AppointmentResults_AppointmentResultId",
-                        column: x => x.AppointmentResultId,
-                        principalTable: "AppointmentResults",
-                        principalColumn: "AppointmentResultId",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Appointments_ReservedTimeSlots_ReservedTimeSlotId",
-                        column: x => x.ReservedTimeSlotId,
-                        principalTable: "ReservedTimeSlots",
-                        principalColumn: "ReservedTimeSlotId",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Appointments_AppointmentResultId",
-                table: "Appointments",
-                column: "AppointmentResultId",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Appointments_ReservedTimeSlotId",
-                table: "Appointments",
-                column: "ReservedTimeSlotId",
-                unique: true);
-        }
-
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropTable(
-                name: "Appointments");
-
-            migrationBuilder.DropTable(
-                name: "AppointmentResults");
-
-            migrationBuilder.DropTable(
-                name: "ReservedTimeSlots");
+            Create.Table("Appointment")
+                .WithColumn("AppointmentId").AsGuid().PrimaryKey()
+                .WithColumn("DoctorId").AsGuid().ForeignKey("Doctor", "DoctorId")
+                .WithColumn("ServiceId").AsGuid()
+                .WithColumn("PatientId").AsGuid()
+                .WithColumn("Status").AsInt32()
+                .WithColumn("ReservedTimeSlotId").AsGuid()
+                    .ForeignKey("ReservedTimeSlot", "ReservedTimeSlotId")
+                .WithColumn("AppointmentResultId").AsGuid().Nullable()
+                    .ForeignKey("AppointmentResult", "AppointmentResultId");
         }
     }
 }
