@@ -1,10 +1,12 @@
 using Innowise.Clinic.Appointments.Dto;
 using Innowise.Clinic.Appointments.Exceptions;
+using Innowise.Clinic.Appointments.Persistence.EntityFilters.Appointments;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.Persistence.Repositories.Interfaces;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
+using Innowise.Clinic.Appointments.Services.Mappings;
+using Innowise.Clinic.Appointments.Services.TimeSlotsService.Interfaces;
 using Innowise.Clinic.Shared.Constants;
-using Innowise.Clinic.Shared.Enums;
 using Innowise.Clinic.Shared.Exceptions;
 using Innowise.Clinic.Shared.MassTransit.MessageTypes.Requests;
 using Innowise.Clinic.Shared.Services.FiltrationService;
@@ -15,148 +17,86 @@ namespace Innowise.Clinic.Appointments.Services.AppointmentsService.Implementati
 
 public class AppointmentsService : IAppointmentsService
 {
-    // TODO ADD SORTING
     private readonly IAppointmentsRepository _appointmentsRepository;
     private readonly IDoctorRepository _doctorRepository;
+    private readonly ITimeSlotsService _timeSlotsService;
     private readonly FilterResolver<Appointment> _filterResolver;
-    private readonly IRequestClient<TimeSlotReservationRequest> _timeslotReservationClient;
-    private readonly IRequestClient<UpdateAppointmentTimeslotRequest> _timeslotUpdateClient;
     private readonly IRequestClient<ProfileExistsAndHasRoleRequest> _profileConsistencyCheckClient;
     private readonly IRequestClient<ServiceExistsAndBelongsToSpecializationRequest> _serviceConsistencyCheckClient;
 
-    public AppointmentsService(IRequestClient<TimeSlotReservationRequest> reservationClient,
-        IRequestClient<ProfileExistsAndHasRoleRequest> profileConsistencyCheckClient,
+    public AppointmentsService(IRequestClient<ProfileExistsAndHasRoleRequest> profileConsistencyCheckClient,
         IRequestClient<ServiceExistsAndBelongsToSpecializationRequest> serviceConsistencyCheckClient,
-        IRequestClient<UpdateAppointmentTimeslotRequest> timeslotUpdateClient,
         IAppointmentsRepository appointmentsRepository, IDoctorRepository doctorRepository,
-        FilterResolver<Appointment> filterResolver)
+        FilterResolver<Appointment> filterResolver, ITimeSlotsService timeSlotsService)
     {
-        _timeslotReservationClient = reservationClient;
         _profileConsistencyCheckClient = profileConsistencyCheckClient;
         _serviceConsistencyCheckClient = serviceConsistencyCheckClient;
-        _timeslotUpdateClient = timeslotUpdateClient;
         _appointmentsRepository = appointmentsRepository;
         _doctorRepository = doctorRepository;
         _filterResolver = filterResolver;
+        _timeSlotsService = timeSlotsService;
     }
 
     public async Task<IEnumerable<ViewAppointmentHistoryDto>> GetPatientAppointmentHistory(Guid patientId)
     {
         var appointments = await _appointmentsRepository.GetAppointmentsListingAsync(x => x.PatientId == patientId);
-
-        return appointments.OrderByDescending(x => x.ReservedTimeSlot.AppointmentStart).Select(x =>
-            new ViewAppointmentHistoryDto
-            {
-                AppointmentId = x.AppointmentId,
-                AppointmentStart = x.ReservedTimeSlot.AppointmentStart,
-                AppointmentFinish = x.ReservedTimeSlot.AppointmentFinish,
-                DoctorId = x.DoctorId,
-                PatientId = x.PatientId,
-                ServiceId = x.ServiceId,
-                AppointmentResultId = x.AppointmentResultId
-            });
+        return appointments
+            .OrderByDescending(x => x.ReservedTimeSlot.AppointmentStart)
+            .ToAppointmentHistory();
     }
 
     public async Task<IEnumerable<AppointmentDoctorInfoDto>> GetDoctorsAppointmentsAsync(
         CompoundFilter<Appointment> filter)
     {
-        var appointments =
-            await _appointmentsRepository.GetAppointmentsListingAsync(
-                _filterResolver.ConvertCompoundFilterToExpression(filter));
-
-        return appointments.Select(x => new AppointmentDoctorInfoDto
-        {
-            AppointmentId = x.AppointmentId,
-            AppointmentStart = x.ReservedTimeSlot.AppointmentStart,
-            AppointmentFinish = x.ReservedTimeSlot.AppointmentFinish,
-            AppointmentStatus = x.Status,
-            PatientId = x.PatientId,
-            ServiceId = x.ServiceId,
-            AppointmentResultId = x.AppointmentResultId
-        });
+        var filterExpression = _filterResolver.ConvertCompoundFilterToExpression(filter);
+        var appointments = await _appointmentsRepository.GetAppointmentsListingAsync(filterExpression);
+        return appointments.ToDoctorAppointmentListing();
     }
 
     public async Task<IEnumerable<AppointmentInfoDto>> GetAppointmentsAsync(
         CompoundFilter<Appointment> filter)
     {
-        var appointments =
-            await _appointmentsRepository.GetAppointmentsListingAsync(
-                _filterResolver.ConvertCompoundFilterToExpression(filter));
-        return appointments.Select(x => new AppointmentInfoDto
-        {
-            AppointmentId = x.AppointmentId,
-            AppointmentStart = x.ReservedTimeSlot.AppointmentStart,
-            AppointmentFinish = x.ReservedTimeSlot.AppointmentFinish,
-            AppointmentStatus = x.Status,
-            PatientId = x.PatientId,
-            ServiceId = x.ServiceId
-        });
+        var filterExpression = _filterResolver.ConvertCompoundFilterToExpression(filter);
+        var appointments = await _appointmentsRepository.GetAppointmentsListingAsync(filterExpression);
+        return appointments.ToAppointmentListing();
     }
 
     public async Task<Guid> CreateAppointmentAsync(CreateAppointmentDto createAppointmentDto)
     {
         await EnsureDataConsistency(createAppointmentDto);
-        var timeSlotReservationResult = await _timeslotReservationClient.GetResponse<TimeSlotReservationResponse>(new(
+        var reservedTimeSlot = await _timeSlotsService.TryReserveTimeSlot(
             createAppointmentDto.DoctorId,
             createAppointmentDto.AppointmentStart,
-            createAppointmentDto.AppointmentFinish)
-        );
+            createAppointmentDto.AppointmentFinish);
 
-        if (timeSlotReservationResult.Message is { IsSuccessful: true, ReservedTimeSlotId: { } })
-        {
-            var newTimeSlotReservation = new ReservedTimeSlot
-            {
-                ReservedTimeSlotId = (Guid)timeSlotReservationResult.Message.ReservedTimeSlotId,
-                AppointmentStart = createAppointmentDto.AppointmentStart,
-                AppointmentFinish = createAppointmentDto.AppointmentFinish
-            };
-            var newAppointment = new Appointment
-            {
-                DoctorId = createAppointmentDto.DoctorId,
-                ServiceId = createAppointmentDto.ServiceId,
-                PatientId = createAppointmentDto.PatientId,
-                Status = AppointmentStatus.Created,
-                ReservedTimeSlot = newTimeSlotReservation,
-            };
-
-            await _appointmentsRepository.CreateAppointmentAsync(newAppointment);
-            return newAppointment.AppointmentId;
-        }
-
-        throw new ReservationFailedException(timeSlotReservationResult.Message.FailReason ??
-                                             throw new MissingErrorMessageException());
+        var newAppointment = createAppointmentDto.ToNewAppointment(reservedTimeSlot);
+        await _appointmentsRepository.CreateAppointmentAsync(newAppointment);
+        return newAppointment.AppointmentId;
     }
 
     public async Task<Guid> CreateAppointmentAsync(CreateAppointmentDto createAppointmentDto,
         Guid referrerPatientProfileId)
     {
-        if (createAppointmentDto.PatientId != referrerPatientProfileId)
-            throw new NotAllowedException("It is only possible to make an appointment for yourself.");
-
+        ValidatePatientPermissions(referrerPatientProfileId, createAppointmentDto.PatientId);
         return await CreateAppointmentAsync(createAppointmentDto);
     }
 
     public async Task UpdateAppointmentAsync(Guid id, AppointmentEditTimeAndStatusDto updatedAppointment)
     {
-        var appointment = await _appointmentsRepository.GetAppointmentAsync(x => x.AppointmentId == id);
-        if (appointment.ReservedTimeSlot.AppointmentStart != updatedAppointment.AppointmentStart &&
-            appointment.ReservedTimeSlot.AppointmentFinish != updatedAppointment.AppointmentEnd)
+        var filterExpression = new IdFilter().ToExpression(id.ToString());
+        var appointment = await _appointmentsRepository.GetAppointmentAsync(filterExpression);
+        var isTimeSlotRebookingRequired =
+            appointment.ReservedTimeSlot.AppointmentStart != updatedAppointment.AppointmentStart ||
+            appointment.ReservedTimeSlot.AppointmentFinish != updatedAppointment.AppointmentEnd;
+
+        if (isTimeSlotRebookingRequired)
         {
-            var timeslotUpdateResponse = await _timeslotUpdateClient.GetResponse<UpdateAppointmentTimeslotResponse>(
-                new(id, new(
-                    updatedAppointment.DoctorId,
-                    updatedAppointment.AppointmentStart,
-                    updatedAppointment.AppointmentEnd)));
-
-            if (!timeslotUpdateResponse.Message.IsSuccessful)
-            {
-                var message = timeslotUpdateResponse.Message.FailReason ??
-                              throw new MissingErrorMessageException();
-                throw new ReservationFailedException(message);
-            }
-
-            appointment.ReservedTimeSlot.AppointmentStart = updatedAppointment.AppointmentStart;
-            appointment.ReservedTimeSlot.AppointmentFinish = updatedAppointment.AppointmentEnd;
+            var timeSlot = await _timeSlotsService.TryRebookTimeSlot(
+                appointment.ReservedTimeSlotId,
+                appointment.DoctorId,
+                updatedAppointment.AppointmentStart,
+                updatedAppointment.AppointmentEnd);
+            appointment.ReservedTimeSlot = timeSlot;
         }
 
         appointment.Status = updatedAppointment.AppointmentStatus;
@@ -166,21 +106,16 @@ public class AppointmentsService : IAppointmentsService
     public async Task UpdateAppointmentAsync(Guid id, AppointmentEditTimeDto updatedAppointment,
         Guid referrerPatientProfileId)
     {
-        // TODO AVOID DOUBLE DB CALL
         var appointment = await _appointmentsRepository.GetAppointmentAsync(x => x.AppointmentId == id);
-        if (appointment.PatientId != referrerPatientProfileId)
-            throw new NotAllowedException("Patients are not allowed to edit appointments of other patients");
-        await UpdateAppointmentAsync(id, new(
-            id,
-            updatedAppointment.DoctorId,
-            updatedAppointment.AppointmentStart,
-            updatedAppointment.AppointmentEnd,
-            appointment.Status
-        ));
+        ValidatePatientPermissions(referrerPatientProfileId, appointment.PatientId);
+        var completeUpdateDto = updatedAppointment.ToCompleteUpdateDto(appointment);
+        await UpdateAppointmentAsync(id, completeUpdateDto);
     }
 
     private async Task EnsureDataConsistency(CreateAppointmentDto createAppointmentDto)
     {
+        // TODO this filtration expression is super slow as it has closure in it
+        // TODO it might be a good idea to encapsulate the filter somewhere
         var doctorGetTask = _doctorRepository.GetDoctorAsync(x =>
             x.DoctorId == createAppointmentDto.DoctorId &&
             x.SpecializationId == createAppointmentDto.SpecializationId &&
@@ -218,5 +153,11 @@ public class AppointmentsService : IAppointmentsService
 
             consistencyTasks.Remove(finishedTask);
         }
+    }
+
+    private void ValidatePatientPermissions(Guid referrerPatientProfileId, Guid targetEntityOwnerId)
+    {
+        if (targetEntityOwnerId != referrerPatientProfileId)
+            throw new NotAllowedException("It is only possible to manage your own appointment.");
     }
 }

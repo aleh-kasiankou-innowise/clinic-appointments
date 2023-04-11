@@ -2,6 +2,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.Tokens;
+using Serilog;
 
 namespace Innowise.Clinic.Appointments.RequestPipeline;
 
@@ -19,22 +20,26 @@ public class ExceptionHandlingMiddleware : IMiddleware
 
         catch (SecurityTokenValidationException e)
         {
-            context.Response.StatusCode = 401;
+            context.Response.StatusCode = 403;
             await WriteExceptionMessageToResponse(e.Message, context);
+            Log.Information("The token validation exception has occured: {Exception}", e.Message);
         }
 
         catch (ApplicationException e)
         {
             context.Response.StatusCode = 400;
             await WriteExceptionMessageToResponse(e.Message, context);
+            Log.Warning(
+                "The application exception has occured: {Exception} with the following stack trace: {StackTrace}",
+                e.Message, e.StackTrace);
         }
 
         catch (Exception e)
         {
             context.Response.StatusCode = 500;
-
-            Console.WriteLine(e);
-
+            Log.Error(
+                "The unhandled exception occured: {ExceptionMessage} with the following stack trace: {StackTrace}",
+                e.Message, e.StackTrace);
             await WriteExceptionMessageToResponse(DefaultUnhandledErrorMessage, context);
         }
     }

@@ -2,17 +2,16 @@ using System.Text;
 using Dapper;
 using Innowise.Clinic.Appointments.Persistence.EntityFilters.TimeSlots;
 using Innowise.Clinic.Appointments.Persistence.Models;
+using Innowise.Clinic.Appointments.Persistence.ObjectRelationalMapping;
 using Innowise.Clinic.Appointments.Persistence.Repositories.Interfaces;
 using Npgsql;
 
 namespace Innowise.Clinic.Appointments.Persistence.Repositories.Implementations;
 
-// TODO CONSIDER ADDING UPDATE STATEMENT
 public class TimeSlotRepository : ITimeSlotRepository
 {
     private SqlRepresentation<ReservedTimeSlot> _timeSlotTableSqlRepresentation;
     private readonly string _insertTimeSlotStatement;
-    private readonly string _updateTimeSlotStatement;
     private readonly string _deleteTimeSlotStatement;
 
 
@@ -21,20 +20,19 @@ public class TimeSlotRepository : ITimeSlotRepository
         _timeSlotTableSqlRepresentation = sqlRepresentation;
 
         var insertTimeSlotStatementTemplate = new StringBuilder(
-            $"INSERT INTO {_timeSlotTableSqlRepresentation}([FIELDS]) " +
-            $"VALUES(gen_random_uuid(), [VALUES]);");
+            $"INSERT INTO {_timeSlotTableSqlRepresentation}({SqlVariables.InsertFields}) " +
+            $"VALUES(gen_random_uuid(), {SqlVariables.InsertValues});");
 
         var _updateTimeSlotStatementTemplate = new StringBuilder(
             $"UPDATE {_timeSlotTableSqlRepresentation} " +
-            $"SET [UPDATEMAPPINGS] " +
-            "WHERE [FILTER];");
+            $"SET {SqlVariables.UpdateValues} " +
+            $"WHERE {SqlVariables.Filter};");
 
         _deleteTimeSlotStatement =
             $"DELETE FROM {_timeSlotTableSqlRepresentation} " +
-            $"WHERE [FILTER];";
+            $"WHERE {SqlVariables.Filter};";
 
         _insertTimeSlotStatement = sqlRepresentation.CompleteInsertStatement(insertTimeSlotStatementTemplate);
-        _updateTimeSlotStatement = sqlRepresentation.CompleteUpdateStatement(_updateTimeSlotStatementTemplate);
     }
 
     public async Task<Guid> ReserveTimeSlot(NpgsqlConnection connection, ReservedTimeSlot newTimeSlot)

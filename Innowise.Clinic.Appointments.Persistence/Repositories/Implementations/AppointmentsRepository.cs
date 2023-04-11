@@ -3,6 +3,7 @@ using System.Text;
 using Dapper;
 using Innowise.Clinic.Appointments.Persistence.EntityFilters.Appointments;
 using Innowise.Clinic.Appointments.Persistence.Models;
+using Innowise.Clinic.Appointments.Persistence.ObjectRelationalMapping;
 using Innowise.Clinic.Appointments.Persistence.Repositories.Interfaces;
 using Npgsql;
 
@@ -33,17 +34,17 @@ public class AppointmentsRepository : IAppointmentsRepository
             $"INNER JOIN {_timeSlotTableSqlRepresentation} " +
             $"on {_appointmentSqlRepresentation.Property(x => x.ReservedTimeSlotId)} = " +
             $"{_timeSlotTableSqlRepresentation.Property(x => x.ReservedTimeSlotId)} " +
-            $"WHERE [FILTER];";
+            $"WHERE {SqlVariables.Filter};";
 
         var insertAppointmentStatementTemplate =
-            new StringBuilder($"INSERT INTO {_appointmentSqlRepresentation}([FIELDS]) " +
-                              $"VALUES( gen_random_uuid() ,[VALUES]) " +
+            new StringBuilder($"INSERT INTO {_appointmentSqlRepresentation}({SqlVariables.InsertFields}) " +
+                              $"VALUES( gen_random_uuid() ,{SqlVariables.InsertValues}) " +
                               $"RETURNING {_appointmentSqlRepresentation.Property(x => x.AppointmentId)}");
 
         var updateAppointmentStatementTemplate = new StringBuilder(
             $"UPDATE {_appointmentSqlRepresentation} " +
-            $"SET [UPDATEMAPPINGS] " +
-            $"WHERE [FILTER];");
+            $"SET {SqlVariables.UpdateValues} " +
+            $"WHERE {SqlVariables.Filter};");
 
 
         _insertAppointmentStatementTemplate =

@@ -1,6 +1,5 @@
 using System.Linq.Expressions;
 using Innowise.Clinic.Appointments.Persistence.Models;
-using Innowise.Clinic.Shared.Enums;
 using Innowise.Clinic.Shared.Services.FiltrationService.Abstractions;
 using Innowise.Clinic.Shared.Services.FiltrationService.Attributes;
 

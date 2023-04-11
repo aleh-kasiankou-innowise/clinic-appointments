@@ -2,11 +2,11 @@ using System.Linq.Expressions;
 using System.Text;
 using Dapper;
 using Innowise.Clinic.Appointments.Persistence.Models;
+using Innowise.Clinic.Appointments.Persistence.ObjectRelationalMapping;
 using Innowise.Clinic.Appointments.Persistence.Repositories.Interfaces;
 using Npgsql;
 using IdFilter = Innowise.Clinic.Appointments.Persistence.EntityFilters.AppointmentResults.IdFilter;
 
-// TODO MOVE TEMPLATE VARIABLES TO STATIC CLASS
 namespace Innowise.Clinic.Appointments.Persistence.Repositories.Implementations;
 
 public class AppointmentResultsRepository : IAppointmentResultsRepository
@@ -22,17 +22,15 @@ public class AppointmentResultsRepository : IAppointmentResultsRepository
     {
         _dataSource = dataSource;
         _sqlRepresentation = sqlRepresentation;
-
-        _selectStatement = $"SELECT * FROM {sqlRepresentation} WHERE [FILTER];";
-
+        
+        _selectStatement = $"SELECT * FROM {sqlRepresentation} WHERE {SqlVariables.Filter};";
         var insertStatementTemplate =
             new StringBuilder(
-                $"INSERT INTO {_sqlRepresentation}([FIELDS]) VALUES(gen_random_uuid(), [VALUES]) " +
+                $"INSERT INTO {_sqlRepresentation}({SqlVariables.InsertFields}) VALUES(gen_random_uuid(), {SqlVariables.InsertValues}) " +
                 $"RETURNING {sqlRepresentation.Property(x => x.AppointmentResultId)};");
 
         _insertStatement = _sqlRepresentation.CompleteInsertStatement(insertStatementTemplate);
-
-        _updateStatement = "UPDATE {tableName} SET [UPDATEMAPPINGS] WHERE [FILTER];";
+        _updateStatement = $"UPDATE {_sqlRepresentation} SET {SqlVariables.UpdateValues} WHERE {SqlVariables.Filter};";
     }
 
     public async Task<AppointmentResult> GetAppointmentResultAsync(Expression<Func<AppointmentResult, bool>> filter)
@@ -57,11 +55,8 @@ public class AppointmentResultsRepository : IAppointmentResultsRepository
 
     public async Task UpdateAppointmentResultAsync(AppointmentResult appointmentResult)
     {
-        var savedAppointment =
-            await GetAppointmentResultAsync(
-                new IdFilter().ToExpression(appointmentResult.AppointmentResultId.ToString()));
-        var appointmentSqlWithParams = _sqlRepresentation.ApplyFilter(_updateStatement,
-            new IdFilter().ToExpression(appointmentResult.AppointmentResultId.ToString()));
+        var idFilterExpression = new IdFilter().ToExpression(appointmentResult.AppointmentResultId.ToString());
+        var appointmentSqlWithParams = _sqlRepresentation.ApplyFilter(_updateStatement, idFilterExpression);
         await using var connection = await _dataSource.OpenConnectionAsync();
         await connection.ExecuteAsync(appointmentSqlWithParams.Sql, appointmentSqlWithParams.Parameters);
     }

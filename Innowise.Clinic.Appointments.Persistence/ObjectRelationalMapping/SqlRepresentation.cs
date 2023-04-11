@@ -4,10 +4,11 @@ using System.Text;
 using Innowise.Clinic.Shared.BaseClasses;
 using Innowise.Clinic.Shared.Services.FiltrationService;
 using Innowise.Clinic.Shared.Services.SqlMappingService;
+using Microsoft.Extensions.Logging;
 
-namespace Innowise.Clinic.Appointments.Persistence;
+namespace Innowise.Clinic.Appointments.Persistence.ObjectRelationalMapping;
 
-public abstract class SqlRepresentation<T> where T : IEntity
+public class SqlRepresentation<T> where T : IEntity
 {
     private readonly TreeToSqlVisitor _toSqlVisitor;
     private readonly ISqlMapper _sqlMapper;
@@ -15,10 +16,13 @@ public abstract class SqlRepresentation<T> where T : IEntity
     private readonly IDictionary<PropertyInfo, (string param, string sqlName)> _props =
         new Dictionary<PropertyInfo, (string, string)>();
 
-    public SqlRepresentation(TreeToSqlVisitor toSqlVisitor, ISqlMapper sqlMapper)
+    private readonly ILogger<SqlRepresentation<T>> _logger;
+
+    public SqlRepresentation(TreeToSqlVisitor toSqlVisitor, ISqlMapper sqlMapper, ILogger<SqlRepresentation<T>> logger)
     {
         _toSqlVisitor = toSqlVisitor;
         _sqlMapper = sqlMapper;
+        _logger = logger;
         CacheTypeProps();
     }
 
@@ -46,7 +50,7 @@ public abstract class SqlRepresentation<T> where T : IEntity
     {
         var sqlParamValues = new Dictionary<string, object>();
         var whereClause = _toSqlVisitor.Visit(filter, typeof(T), sqlParamValues);
-        var finalStatement = statement.Replace("[FILTER]", whereClause.ToString());
+        var finalStatement = statement.Replace(SqlVariables.Filter, whereClause.ToString());
         return (finalStatement, sqlParamValues);
     }
 
@@ -54,21 +58,31 @@ public abstract class SqlRepresentation<T> where T : IEntity
         T instance)
     {
         var paramDictionary = new Dictionary<string, object>();
+        return MapPropertiesToSqlParameters(instance, paramDictionary);
+    }
+
+    public Dictionary<string, object> MapPropertiesToSqlParameters(
+        T instance, Dictionary<string, object> parameters)
+    {
         foreach (var keyValuePair in _props)
         {
-            paramDictionary.Add(keyValuePair.Value.param, GetPropertyValue(keyValuePair.Key, instance));
+            var propertyValue = GetPropertyValue(keyValuePair.Key, instance) ??
+                                throw new ApplicationException(
+                                    $"Cannot get the property value ({keyValuePair.Key.Name}) for type ({typeof(T).FullName})");
+            parameters.Add(keyValuePair.Value.param, propertyValue);
+            _logger.LogDebug("Mapping {Param} to {ParamValue}", keyValuePair.Value.param, propertyValue);
         }
 
-        return paramDictionary;
+        return parameters;
     }
 
     public string CompleteInsertStatement(StringBuilder insertStatementTemplate)
     {
-        var commaSeparatedFields = string.Join(", ", _props.Values.Select(x => x.sqlName));
+        var commaSeparatedFields = string.Join(", ", _props.Values.Select(x => $"\"{x.sqlName}\""));
         var commaSeparatedParams = string.Join(", ", _props.Values.Select(x => x.param));
         var replace = insertStatementTemplate
-            .Replace("[FIELDS]", commaSeparatedFields)
-            .Replace("[VALUES]", commaSeparatedParams);
+            .Replace(SqlVariables.InsertFields, commaSeparatedFields)
+            .Replace(SqlVariables.InsertValues, commaSeparatedParams);
         return replace.ToString();
     }
 
@@ -77,10 +91,16 @@ public abstract class SqlRepresentation<T> where T : IEntity
         var mappingWithParams = new StringBuilder();
         foreach (var keyValuePair in _props)
         {
-            mappingWithParams.Append($"{keyValuePair.Value.sqlName} = {keyValuePair.Value.param}");
+            mappingWithParams.Append(
+                $"\"{keyValuePair.Value.sqlName}\" = {keyValuePair.Value.param},");
+            _logger.LogDebug("\"{Table}.{Column}\" = {Param},", _sqlMapper.GetSqlTableName(typeof(T)),
+                keyValuePair.Value.sqlName, keyValuePair.Value.param);
         }
 
-        return updateStatementTemplate.Replace("[UPDATEMAPPINGS]", mappingWithParams.ToString()).ToString();
+        // removing comma
+        mappingWithParams.Remove(mappingWithParams.Length - 1, 1);
+
+        return updateStatementTemplate.Replace(SqlVariables.UpdateValues, mappingWithParams.ToString()).ToString();
     }
 
     private void CacheTypeProps()
@@ -88,18 +108,23 @@ public abstract class SqlRepresentation<T> where T : IEntity
         var properties = typeof(T).GetProperties();
         foreach (var prop in properties)
         {
-            // TODO ENCAPSULATE LOGIC OF CHECKING ID PROPERTY INTO MAPPER
+            // TODO ENCAPSULATE LOGIC OF CHECKING ID PROPERTY INTO LINQ TO SQL MAPPER
 
-            if (!prop.GetMethod.IsVirtual && !prop.Name.EndsWith("id", StringComparison.OrdinalIgnoreCase))
+            _logger.LogDebug("Caching table properties");
+            if (!prop.GetMethod.IsVirtual &&
+                !prop.Name.EndsWith($"{typeof(T).Name}.id", StringComparison.OrdinalIgnoreCase))
             {
                 var sqlPropName = _sqlMapper.GetSqlPropertyName(typeof(T), prop);
-                _props.Add(prop, ("@" + sqlPropName, sqlPropName));
+                var parameter = "@" + sqlPropName;
+                _props.Add(prop, (parameter, sqlPropName));
+                _logger.LogDebug("Caching parameter {Parameter}", parameter);
+
             }
         }
     }
 
-    private object GetPropertyValue(PropertyInfo prop, T instance)
+    private object? GetPropertyValue(PropertyInfo prop, T instance)
     {
-        return ((Func<object>)Delegate.CreateDelegate(typeof(T), instance, prop.GetMethod.Name))();
+        return prop.GetValue(instance);
     }
 }

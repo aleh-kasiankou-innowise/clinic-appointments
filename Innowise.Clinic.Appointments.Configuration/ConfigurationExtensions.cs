@@ -1,15 +1,16 @@
 ﻿using System.Text;
 using Dapper;
 using FluentMigrator.Runner;
-using Innowise.Clinic.Appointments.Persistence;
 using Innowise.Clinic.Appointments.Persistence.Migrations;
 using Innowise.Clinic.Appointments.Persistence.Models;
+using Innowise.Clinic.Appointments.Persistence.ObjectRelationalMapping;
 using Innowise.Clinic.Appointments.Persistence.Repositories.Implementations;
 using Innowise.Clinic.Appointments.Persistence.Repositories.Interfaces;
 using Innowise.Clinic.Appointments.Services.AppointmentResultsService.Implementations;
 using Innowise.Clinic.Appointments.Services.AppointmentResultsService.Interfaces;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Implementations;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
+using Innowise.Clinic.Appointments.Services.MassTransitService.Consumers;
 using Innowise.Clinic.Shared.Services.FiltrationService;
 using Innowise.Clinic.Shared.Services.SqlMappingService;
 using MassTransit;
@@ -21,6 +22,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Npgsql;
+using Serilog;
 
 namespace Innowise.Clinic.Appointments.Configuration;
 
@@ -84,6 +86,7 @@ public static class ConfigurationExtensions
         var rabbitMqConfig = configuration.GetSection("RabbitConfigurations");
         services.AddMassTransit(x =>
         {
+            x.AddConsumer<DoctorChangesConsumer>();
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqConfig["HostName"], h =>
@@ -105,36 +108,38 @@ public static class ConfigurationExtensions
                                    "The connection string for the database connection was not found.");
         services.AddNpgsqlDataSource(connectionString);
 
+        services.AddSingleton<TreeToSqlVisitor>();
         var defaultMapper = new HybridMapper();
         services.AddSingleton<ISqlMapper>(defaultMapper);
+
         foreach (var entity in EntityMappingHelper.GetAllEntities())
         {
             SqlMapper.SetTypeMap(entity, new CustomPropertyTypeMap(entity, defaultMapper.GetProperty));
+            var sqlRepresentationType = typeof(SqlRepresentation<>).MakeGenericType(entity);
+            services.AddSingleton(sqlRepresentationType);
         }
 
-        services.AddSingleton(typeof(SqlRepresentation<>), typeof(SqlRepresentation<>));
         services.AddSingleton<IDoctorRepository, DoctorRepository>();
         services.AddSingleton<IAppointmentsRepository, AppointmentsRepository>();
         services.AddSingleton<IAppointmentResultsRepository, AppointmentResultsRepository>();
         return services;
     }
 
-    public static IServiceCollection ConfigureMigrations(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection PrepareFluentMigrator(this IServiceCollection services,
+        IConfiguration configuration)
     {
         services.AddFluentMigratorCore()
             .ConfigureRunner(rb => rb
                 .AddPostgres()
                 .WithGlobalConnectionString(configuration.GetConnectionString("Default"))
                 .ScanIn(typeof(Init).Assembly).For.Migrations())
-            .AddLogging(lb => lb.AddFluentMigratorConsole())
-            .BuildServiceProvider(false);
+            .AddLogging(lb => lb.AddFluentMigratorConsole());
 
         return services;
     }
 
     public static IServiceCollection ConfigureServices(this IServiceCollection services)
     {
-        services.AddSingleton<TreeToSqlVisitor>();
         services.AddSingleton<FilterResolver<Appointment>>();
         services.AddSingleton<FilterResolver<AppointmentResult>>();
         services.AddSingleton<IAppointmentsService, AppointmentsService>();
@@ -142,13 +147,29 @@ public static class ConfigurationExtensions
         return services;
     }
 
-    public static async Task ApplyMigrations(this WebApplication app, string dbName)
+    public static WebApplicationBuilder ConfigureLogging(this WebApplicationBuilder builder)
     {
-        // TODO SOMEHOW REMOVE THE HARDCODED CONNECTION STRING
+        var logger = new LoggerConfiguration()
+            .WriteTo.Console()
+            .MinimumLevel.Debug()
+            .ReadFrom.Configuration(builder.Configuration)
+            .CreateLogger();
+
+        Log.Logger = logger;
+        builder.Host.UseSerilog(logger);
+        return builder;
+    }
+
+    public static async Task ApplyMigrations(this WebApplication app, IConfiguration configuration, string dbName)
+    {
         using var scope = app.Services.CreateScope();
         var services = scope.ServiceProvider;
-        using var conn = new NpgsqlConnection("Server=appointment-db,5432;User Id=postgres; Password=secureDbPassw0rd; TrustServerCertificate=True;");
-        var tableExists = (await conn.QueryAsync($"SELECT datname FROM pg_database WHERE datname = '{dbName.ToLower()}';")).Any();
+        var connectionString = configuration.GetConnectionString("Migrator");
+        using var conn =
+            new NpgsqlConnection(connectionString);
+        
+        var tableExists =
+            (await conn.QueryAsync($"SELECT datname FROM pg_database WHERE datname = '{dbName.ToLower()}';")).Any();
         if (!tableExists)
         {
             await conn.ExecuteAsync($"CREATE DATABASE {dbName};");

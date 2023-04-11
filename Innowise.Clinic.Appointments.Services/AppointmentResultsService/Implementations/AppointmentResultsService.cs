@@ -1,8 +1,12 @@
 using Innowise.Clinic.Appointments.Dto;
-using Innowise.Clinic.Appointments.Persistence.Models;
+using Innowise.Clinic.Appointments.Persistence.EntityFilters.AppointmentResults;
 using Innowise.Clinic.Appointments.Persistence.Repositories.Interfaces;
 using Innowise.Clinic.Appointments.Services.AppointmentResultsService.Interfaces;
+using Innowise.Clinic.Appointments.Services.Mappings;
+using Innowise.Clinic.Shared.Services.PredicateBuilder;
 using MassTransit;
+using DoctorFilter = Innowise.Clinic.Appointments.Persistence.EntityFilters.AppointmentResults.DoctorFilter;
+using IdFilter = Innowise.Clinic.Appointments.Persistence.EntityFilters.AppointmentResults.IdFilter;
 
 namespace Innowise.Clinic.Appointments.Services.AppointmentResultsService.Implementations;
 
@@ -10,7 +14,7 @@ public class AppointmentResultsService : IAppointmentResultsService
 {
     private readonly IAppointmentResultsRepository _appointmentResultsRepository;
     private readonly IBus _bus;
-
+    
     public AppointmentResultsService(IBus bus, IAppointmentResultsRepository appointmentResultsRepository)
     {
         _bus = bus;
@@ -19,73 +23,39 @@ public class AppointmentResultsService : IAppointmentResultsService
 
     public async Task<ViewAppointmentResultDto> GetDoctorAppointmentResult(Guid id, Guid doctorId)
     {
-        // todo remove hardcoded expression
-        var appointmentResult = await _appointmentResultsRepository.GetAppointmentResultAsync(x =>
-            x.AppointmentResultId == id && x.Appointment.DoctorId == doctorId);
-
-        return new ViewAppointmentResultDto
-        {
-            AppointmentResultId = appointmentResult.AppointmentResultId,
-            AppointmentDate = appointmentResult.Appointment.ReservedTimeSlot.AppointmentStart.Date,
-            PatientId = appointmentResult.Appointment.PatientId,
-            DoctorId = doctorId,
-            SpecializationId = appointmentResult.Appointment.Doctor.SpecializationId,
-            ServiceId = appointmentResult.Appointment.ServiceId,
-            Complaints = appointmentResult.Complaints,
-            Conclusion = appointmentResult.Conclusion,
-            Recommendations = appointmentResult.Recommendations
-        };
+        var appointmentResultIdFilterExpression = new IdFilter().ToExpression(id.ToString());
+        var appointmentResultDoctorIdExpression = new DoctorFilter().ToExpression(doctorId.ToString());
+        var complexFilter = appointmentResultIdFilterExpression.And(appointmentResultDoctorIdExpression);
+        var appointmentResult = await _appointmentResultsRepository.GetAppointmentResultAsync(complexFilter);
+        return appointmentResult.ToFrontendPresentation();
     }
 
     public async Task<ViewAppointmentResultDto> GetPatientAppointmentResult(Guid id, Guid patientId)
     {
-        // todo remove hardcoded expression
-        var appointmentResult = await _appointmentResultsRepository.GetAppointmentResultAsync(x =>
-            x.AppointmentResultId == id && x.Appointment.PatientId == patientId);
-        return new ViewAppointmentResultDto
-        {
-            AppointmentResultId = appointmentResult.AppointmentResultId,
-            AppointmentDate = appointmentResult.Appointment.ReservedTimeSlot.AppointmentStart.Date,
-            PatientId = appointmentResult.Appointment.PatientId,
-            DoctorId = appointmentResult.Appointment.DoctorId,
-            SpecializationId = appointmentResult.Appointment.Doctor.SpecializationId,
-            ServiceId = appointmentResult.Appointment.ServiceId,
-            Complaints = appointmentResult.Complaints,
-            Conclusion = appointmentResult.Conclusion,
-            Recommendations = appointmentResult.Recommendations
-        };
+        var appointmentResultIdFilterExpression = new IdFilter().ToExpression(id.ToString());
+        var appointmentResultPatientFilterExpression = new PatientFilter().ToExpression(patientId.ToString());
+        var complexFilter = appointmentResultIdFilterExpression.And(appointmentResultPatientFilterExpression);
+        var appointmentResult = await _appointmentResultsRepository.GetAppointmentResultAsync(complexFilter);
+        return appointmentResult.ToFrontendPresentation();
     }
 
     public async Task<Guid> CreateAppointmentResult(CreateAppointmentResultDto newAppointmentResult, Guid doctorId)
     {
-        var appointmentResult = new AppointmentResult
-        {
-            Complaints = newAppointmentResult.Complaints,
-            Conclusion = newAppointmentResult.Conclusion,
-            Recommendations = newAppointmentResult.Recommendations,
-            AppointmentId = newAppointmentResult.AppointmentId
-        };
-
+        var appointmentResult = newAppointmentResult.ToNewAppointmentResult();
         await _appointmentResultsRepository.CreateAppointmentResultAsync(appointmentResult);
 
         // need patient email and full appointment info
-        // todo send event with requested info
+        // todo send event to notifications service
 
         return appointmentResult.AppointmentResultId;
     }
 
     public async Task UpdateAppointmentResult(Guid id, AppointmentResultEditDto updatedAppointmentResult, Guid doctorId)
     {
-        var appointmentResult = new AppointmentResult
-        {
-            AppointmentResultId = id,
-            Complaints = updatedAppointmentResult.Complaints,
-            Conclusion = updatedAppointmentResult.Conclusion,
-            Recommendations = updatedAppointmentResult.Recommendations
-        };
-
+        var appointmentResult = updatedAppointmentResult.ToUpdatedAppointmentResult(id);
         await _appointmentResultsRepository.UpdateAppointmentResultAsync(appointmentResult);
 
-        // todo send event with requested info
+        // need patient email and full appointment info
+        // todo send event to notification service
     }
 }
