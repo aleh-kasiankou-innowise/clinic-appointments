@@ -1,6 +1,6 @@
 using Innowise.Clinic.Appointments.Dto;
 using Innowise.Clinic.Appointments.Exceptions;
-using Innowise.Clinic.Appointments.Persistence.EntityFilters.Appointments;
+using Innowise.Clinic.Appointments.Persistence.EntityFilters.Doctors;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.Persistence.Repositories.Interfaces;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
@@ -11,7 +11,9 @@ using Innowise.Clinic.Shared.Exceptions;
 using Innowise.Clinic.Shared.MassTransit.MessageTypes.Requests;
 using Innowise.Clinic.Shared.Services.FiltrationService;
 using Innowise.Clinic.Shared.Services.FiltrationService.Abstractions;
+using Innowise.Clinic.Shared.Services.PredicateBuilder;
 using MassTransit;
+using IdFilter = Innowise.Clinic.Appointments.Persistence.EntityFilters.Appointments.IdFilter;
 
 namespace Innowise.Clinic.Appointments.Services.AppointmentsService.Implementations;
 
@@ -114,13 +116,15 @@ public class AppointmentsService : IAppointmentsService
 
     private async Task EnsureDataConsistency(CreateAppointmentDto createAppointmentDto)
     {
-        // TODO this filtration expression is super slow as it has closure in it
-        // TODO it might be a good idea to encapsulate the filter somewhere
-        var doctorGetTask = _doctorRepository.GetDoctorAsync(x =>
-            x.DoctorId == createAppointmentDto.DoctorId &&
-            x.SpecializationId == createAppointmentDto.SpecializationId &&
-            x.OfficeId == createAppointmentDto.OfficeId);
-
+        var doctorIdFilterExpression =
+            new Persistence.EntityFilters.Doctors.IdFilter().ToExpression(createAppointmentDto.DoctorId.ToString());
+        var specializationIdFilterExpression =
+            new SpecializationIdFilter().ToExpression(createAppointmentDto.SpecializationId.ToString());
+        var officeIdFilterExpression = new OfficeIdFilter().ToExpression(createAppointmentDto.OfficeId.ToString());
+        var complexFilter =
+            doctorIdFilterExpression.And(specializationIdFilterExpression).And(officeIdFilterExpression);
+        
+        var doctorGetTask = _doctorRepository.GetDoctorAsync(complexFilter);
         var profileConsistencyCheckTask =
             _profileConsistencyCheckClient.GetResponse<ProfileExistsAndHasRoleResponse>(
                 new(createAppointmentDto.PatientId, UserRoles.Patient));
