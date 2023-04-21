@@ -35,7 +35,7 @@ public class DoctorRepository : IDoctorRepository
             $"SET {SqlVariables.UpdateValues} " +
             $"WHERE {SqlVariables.Filter};");
 
-        _insertStatement = _sqlRepresentation.CompleteInsertStatement(insertTemplate);
+        _insertStatement = _sqlRepresentation.CompleteInsertStatement(insertTemplate, false);
         _updateTemplate = _sqlRepresentation.CompleteUpdateStatement(updateTemplate);
         _logger.LogDebug("Doctor repository has been initiated");
         _logger.LogDebug("Doctor repository SELECT statement: {Statement}", _selectStatement);
@@ -48,38 +48,43 @@ public class DoctorRepository : IDoctorRepository
         var sqlWithParams =
             _sqlRepresentation.ApplyFilter(_selectStatement, filter);
         await using var connection = await _dataSource.OpenConnectionAsync();
-        return await connection.QueryFirstOrDefaultAsync<Doctor>(sqlWithParams.Sql
-            , sqlWithParams.Parameters);
+        return (await connection.QueryAsync<Doctor>(sqlWithParams.Sql
+            , sqlWithParams.Parameters)).FirstOrDefault();
     }
 
     public async Task AddOrUpdateDoctorAsync(DoctorAddedOrUpdatedMessage doctorAddedOrUpdatedMessage)
     {
         var idFilter = new IdFilter().ToExpression(doctorAddedOrUpdatedMessage.DoctorId.ToString());
         var savedDoctor = await GetDoctorAsync(idFilter);
+        await using var connection = await _dataSource.OpenConnectionAsync();
+        var transaction = await connection.BeginTransactionAsync();
+
         if (savedDoctor is not null)
         {
-            await UpdateDoctorAsync();
+            await UpdateDoctorAsync(connection);
         }
         else
         {
-            await AddDoctorAsync();
+            await AddDoctorAsync(connection);
         }
 
-        
-        async Task UpdateDoctorAsync()
+        await transaction.CommitAsync();
+
+
+        async Task UpdateDoctorAsync(NpgsqlConnection npgsqlConnection)
         {
             var appointmentSqlWithParams = _sqlRepresentation.ApplyFilter(_updateTemplate,
                 idFilter);
-            var sqlParameters = _sqlRepresentation.MapPropertiesToSqlParameters(ConvertMessageToDoctor(), appointmentSqlWithParams.Parameters);
-            await using var connection = await _dataSource.OpenConnectionAsync();
-            await connection.ExecuteAsync(appointmentSqlWithParams.Sql, sqlParameters);
+            var sqlParameters =
+                _sqlRepresentation.MapPropertiesToSqlParameters(ConvertMessageToDoctor(),
+                    appointmentSqlWithParams.Parameters);
+            await npgsqlConnection.ExecuteAsync(appointmentSqlWithParams.Sql, sqlParameters);
         }
 
-        async Task AddDoctorAsync()
+        async Task AddDoctorAsync(NpgsqlConnection npgsqlConnection)
         {
             var doctorSqlParams = _sqlRepresentation.MapPropertiesToSqlParameters(ConvertMessageToDoctor());
-            await using var connection = await _dataSource.OpenConnectionAsync();
-            await connection.ExecuteAsync(_insertStatement, doctorSqlParams);
+            await npgsqlConnection.ExecuteAsync(_insertStatement, doctorSqlParams);
         }
 
         Doctor ConvertMessageToDoctor()

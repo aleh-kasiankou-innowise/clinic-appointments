@@ -11,6 +11,9 @@ using Innowise.Clinic.Appointments.Services.AppointmentResultsService.Interfaces
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Implementations;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
 using Innowise.Clinic.Appointments.Services.MassTransitService.Consumers;
+using Innowise.Clinic.Appointments.Services.TimeSlotsService.Implementations;
+using Innowise.Clinic.Appointments.Services.TimeSlotsService.Interfaces;
+using Innowise.Clinic.Shared.MassTransit.MessageTypes.Requests;
 using Innowise.Clinic.Shared.Services.FiltrationService;
 using Innowise.Clinic.Shared.Services.SqlMappingService;
 using MassTransit;
@@ -86,7 +89,9 @@ public static class ConfigurationExtensions
         var rabbitMqConfig = configuration.GetSection("RabbitConfigurations");
         services.AddMassTransit(x =>
         {
-            x.AddConsumer<DoctorChangesConsumer>();
+            x.AddConsumer<DoctorChangesAppointmentsConsumer>();
+            x.AddRequestClient<ProfileExistsAndHasRoleRequest>();
+            x.AddRequestClient<ServiceExistsAndBelongsToSpecializationRequest>();
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqConfig["HostName"], h =>
@@ -122,6 +127,7 @@ public static class ConfigurationExtensions
         services.AddSingleton<IDoctorRepository, DoctorRepository>();
         services.AddSingleton<IAppointmentsRepository, AppointmentsRepository>();
         services.AddSingleton<IAppointmentResultsRepository, AppointmentResultsRepository>();
+        services.AddSingleton<ITimeSlotRepository, TimeSlotRepository>();
         return services;
     }
 
@@ -144,6 +150,7 @@ public static class ConfigurationExtensions
         services.AddSingleton<FilterResolver<AppointmentResult>>();
         services.AddSingleton<IAppointmentsService, AppointmentsService>();
         services.AddSingleton<IAppointmentResultsService, AppointmentResultsService>();
+        services.AddSingleton<ITimeSlotsService, TimeSlotService>();
         return services;
     }
 
@@ -168,9 +175,9 @@ public static class ConfigurationExtensions
         using var conn =
             new NpgsqlConnection(connectionString);
         
-        var tableExists =
+        var databaseExists =
             (await conn.QueryAsync($"SELECT datname FROM pg_database WHERE datname = '{dbName.ToLower()}';")).Any();
-        if (!tableExists)
+        if (!databaseExists)
         {
             await conn.ExecuteAsync($"CREATE DATABASE {dbName};");
         }

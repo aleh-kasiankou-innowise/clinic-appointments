@@ -21,7 +21,8 @@ public class TimeSlotRepository : ITimeSlotRepository
 
         var insertTimeSlotStatementTemplate = new StringBuilder(
             $"INSERT INTO {_timeSlotTableSqlRepresentation}({SqlVariables.InsertFields}) " +
-            $"VALUES(gen_random_uuid(), {SqlVariables.InsertValues});");
+            $"VALUES({SqlVariables.InsertValues}) " +
+            $"RETURNING {_timeSlotTableSqlRepresentation.Property(x => x.ReservedTimeSlotId)};");
 
         var _updateTimeSlotStatementTemplate = new StringBuilder(
             $"UPDATE {_timeSlotTableSqlRepresentation} " +
@@ -32,13 +33,13 @@ public class TimeSlotRepository : ITimeSlotRepository
             $"DELETE FROM {_timeSlotTableSqlRepresentation} " +
             $"WHERE {SqlVariables.Filter};";
 
-        _insertTimeSlotStatement = sqlRepresentation.CompleteInsertStatement(insertTimeSlotStatementTemplate);
+        _insertTimeSlotStatement = sqlRepresentation.CompleteInsertStatement(insertTimeSlotStatementTemplate, false);
     }
 
     public async Task<Guid> ReserveTimeSlot(NpgsqlConnection connection, ReservedTimeSlot newTimeSlot)
     {
         var appointmentSqlParams = _timeSlotTableSqlRepresentation.MapPropertiesToSqlParameters(newTimeSlot);
-        var id = await connection.QueryFirstAsync<Guid>(_insertTimeSlotStatement, appointmentSqlParams);
+        var id = await connection.ExecuteScalarAsync<Guid>(_insertTimeSlotStatement, appointmentSqlParams);
         return id;
     }
 

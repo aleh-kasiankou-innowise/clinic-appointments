@@ -13,12 +13,15 @@ namespace Innowise.Clinic.Appointments.Services.AppointmentResultsService.Implem
 public class AppointmentResultsService : IAppointmentResultsService
 {
     private readonly IAppointmentResultsRepository _appointmentResultsRepository;
+    private readonly IAppointmentsRepository _appointmentsRepository;
     private readonly IBus _bus;
-    
-    public AppointmentResultsService(IBus bus, IAppointmentResultsRepository appointmentResultsRepository)
+
+    public AppointmentResultsService(IBus bus, IAppointmentResultsRepository appointmentResultsRepository,
+        IAppointmentsRepository appointmentsRepository)
     {
         _bus = bus;
         _appointmentResultsRepository = appointmentResultsRepository;
+        _appointmentsRepository = appointmentsRepository;
     }
 
     public async Task<ViewAppointmentResultDto> GetDoctorAppointmentResult(Guid id, Guid doctorId)
@@ -41,20 +44,25 @@ public class AppointmentResultsService : IAppointmentResultsService
 
     public async Task<Guid> CreateAppointmentResult(CreateAppointmentResultDto newAppointmentResult, Guid doctorId)
     {
+        // if first transaction succeeds and second fails, the appointment won't have record about the result.
+        // it might be a good idea to remove the result column from appointment table
         var appointmentResult = newAppointmentResult.ToNewAppointmentResult();
-        await _appointmentResultsRepository.CreateAppointmentResultAsync(appointmentResult);
-
+        var appointmentResultId = await _appointmentResultsRepository.CreateAppointmentResultAsync(appointmentResult);
+        var appointment = await _appointmentsRepository.GetAppointmentAsync(
+            new Persistence.EntityFilters.Appointments.IdFilter().ToExpression(newAppointmentResult.AppointmentId
+                .ToString()));
+        appointment.AppointmentResultId = appointmentResultId;
+        await _appointmentsRepository.UpdateAppointmentAsync(appointment);
+        
         // need patient email and full appointment info
         // todo send event to notifications service
-
-        return appointmentResult.AppointmentResultId;
+        return appointmentResultId;
     }
 
     public async Task UpdateAppointmentResult(Guid id, AppointmentResultEditDto updatedAppointmentResult, Guid doctorId)
     {
         var appointmentResult = updatedAppointmentResult.ToUpdatedAppointmentResult(id);
         await _appointmentResultsRepository.UpdateAppointmentResultAsync(appointmentResult);
-
         // need patient email and full appointment info
         // todo send event to notification service
     }

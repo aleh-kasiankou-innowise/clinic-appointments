@@ -72,8 +72,7 @@ public class AppointmentsService : IAppointmentsService
             createAppointmentDto.AppointmentFinish);
 
         var newAppointment = createAppointmentDto.ToNewAppointment(reservedTimeSlot);
-        await _appointmentsRepository.CreateAppointmentAsync(newAppointment);
-        return newAppointment.AppointmentId;
+        return await _appointmentsRepository.CreateAppointmentAsync(newAppointment);
     }
 
     public async Task<Guid> CreateAppointmentAsync(CreateAppointmentDto createAppointmentDto,
@@ -123,7 +122,6 @@ public class AppointmentsService : IAppointmentsService
         var officeIdFilterExpression = new OfficeIdFilter().ToExpression(createAppointmentDto.OfficeId.ToString());
         var complexFilter =
             doctorIdFilterExpression.And(specializationIdFilterExpression).And(officeIdFilterExpression);
-        
         var doctorGetTask = _doctorRepository.GetDoctorAsync(complexFilter);
         var profileConsistencyCheckTask =
             _profileConsistencyCheckClient.GetResponse<ProfileExistsAndHasRoleResponse>(
@@ -139,15 +137,25 @@ public class AppointmentsService : IAppointmentsService
         while (consistencyTasks.Any())
         {
             var finishedTask = await Task.WhenAny(consistencyTasks);
-            if (finishedTask is Task<Response<ConsistencyCheckResponse>> consistencyCheckTask)
+
+            if (finishedTask is Task<Response<ProfileExistsAndHasRoleResponse>> consistencyCheckTaskResult)
             {
-                (await consistencyCheckTask).Message.CheckIfDataIsConsistent();
+                (await consistencyCheckTaskResult).Message.CheckIfDataIsConsistent();
             }
 
-            else if (finishedTask is Task<Doctor?> doctor && await doctor is null)
+            else if (finishedTask is Task<Response<ServiceExistsAndBelongsToSpecializationResponse>>
+                     serviceConsistencyCheckTaskResult)
             {
-                throw new InconsistentDataException(
-                    "There is no doctor with requested id, specialization and office.");
+                (await serviceConsistencyCheckTaskResult).Message.CheckIfDataIsConsistent();
+            }
+
+            else if (finishedTask is Task<Doctor?> doctor)
+            {
+                if (await doctor is null)
+                {
+                    throw new InconsistentDataException(
+                        "There is no doctor with requested id, specialization and office.");
+                }
             }
 
             else

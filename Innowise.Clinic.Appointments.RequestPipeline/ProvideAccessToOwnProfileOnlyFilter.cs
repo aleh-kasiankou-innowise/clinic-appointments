@@ -20,7 +20,7 @@ public class ProvideAccessToOwnProfileOnlyFilter : ActionFilterAttribute
                 var profileIdClaim =
                     context.HttpContext.User.Claims.FirstOrDefault(x =>
                         x.Type == JwtClaimTypes.LimitedAccessToProfileClaim);
-
+                
                 if (!(context.ActionArguments["patientId"] is Guid requestedId && profileIdClaim != null &&
                       requestedId.ToString() == profileIdClaim.Value))
                 {

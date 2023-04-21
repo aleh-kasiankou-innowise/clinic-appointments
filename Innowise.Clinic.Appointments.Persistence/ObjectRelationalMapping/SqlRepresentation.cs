@@ -28,7 +28,6 @@ public class SqlRepresentation<T> where T : IEntity
 
     public string Property<TProp>(Expression<Func<T, TProp>> propertyExpression, bool excludeTableName = false)
     {
-        // TODO WON'T WORK FOR NESTED PROPERTIES (that represent another entity)
         var propertyExpressionBody = (MemberExpression)propertyExpression.Body;
         var tableName = excludeTableName ? "" : string.Concat("\"", _sqlMapper.GetSqlTableName(typeof(T)), "\".");
         var property = _sqlMapper.GetSqlPropertyName(typeof(T), (PropertyInfo)propertyExpressionBody.Member);
@@ -48,10 +47,20 @@ public class SqlRepresentation<T> where T : IEntity
     public (string Sql, Dictionary<string, object> Parameters) ApplyFilter(string statement,
         Expression<Func<T, bool>> filter)
     {
-        var sqlParamValues = new Dictionary<string, object>();
-        var whereClause = _toSqlVisitor.Visit(filter, typeof(T), sqlParamValues);
-        var finalStatement = statement.Replace(SqlVariables.Filter, whereClause.ToString());
-        return (finalStatement, sqlParamValues);
+        try
+        {
+            var sqlParamValues = new Dictionary<string, object>();
+            var whereClause = _toSqlVisitor.Visit(filter, typeof(T), sqlParamValues);
+            var finalStatement = statement.Replace(SqlVariables.Filter, whereClause.ToString());
+            return (finalStatement, sqlParamValues);
+        }
+
+        catch
+        {
+            _logger.LogWarning("Cannot apply filter to type {Type} : {Filter}\n Statement: {Statement}", typeof(T).Name,
+                filter, statement);
+            throw;
+        }
     }
 
     public Dictionary<string, object> MapPropertiesToSqlParameters(
@@ -66,9 +75,7 @@ public class SqlRepresentation<T> where T : IEntity
     {
         foreach (var keyValuePair in _props)
         {
-            var propertyValue = GetPropertyValue(keyValuePair.Key, instance) ??
-                                throw new ApplicationException(
-                                    $"Cannot get the property value ({keyValuePair.Key.Name}) for type ({typeof(T).FullName})");
+            var propertyValue = GetPropertyValue(keyValuePair.Key, instance);
             parameters.Add(keyValuePair.Value.param, propertyValue);
             _logger.LogDebug("Mapping {Param} to {ParamValue}", keyValuePair.Value.param, propertyValue);
         }
@@ -76,10 +83,13 @@ public class SqlRepresentation<T> where T : IEntity
         return parameters;
     }
 
-    public string CompleteInsertStatement(StringBuilder insertStatementTemplate)
+    public string CompleteInsertStatement(StringBuilder insertStatementTemplate, bool generateRandomGuid = true)
     {
         var commaSeparatedFields = string.Join(", ", _props.Values.Select(x => $"\"{x.sqlName}\""));
-        var commaSeparatedParams = string.Join(", ", _props.Values.Select(x => x.param));
+        var paramPosition = 0;
+        // TODO USE ATTRIBUTES TO DETERMINE ID FIELD INSTEAD OF USING POSITION IN A DICTIONARY
+        var commaSeparatedParams = string.Join(", ",
+            _props.Values.Select(x => paramPosition++ == 0 && generateRandomGuid ? "gen_random_uuid()" : x.param));
         var replace = insertStatementTemplate
             .Replace(SqlVariables.InsertFields, commaSeparatedFields)
             .Replace(SqlVariables.InsertValues, commaSeparatedParams);
@@ -106,19 +116,15 @@ public class SqlRepresentation<T> where T : IEntity
     private void CacheTypeProps()
     {
         var properties = typeof(T).GetProperties();
+        _logger.LogDebug("Caching table properties for {Type}", typeof(T).Name);
         foreach (var prop in properties)
         {
-            // TODO ENCAPSULATE LOGIC OF CHECKING ID PROPERTY INTO LINQ TO SQL MAPPER
-
-            _logger.LogDebug("Caching table properties");
-            if (!prop.GetMethod.IsVirtual &&
-                !prop.Name.EndsWith($"{typeof(T).Name}.id", StringComparison.OrdinalIgnoreCase))
+            if (!prop.GetMethod.IsVirtual)
             {
                 var sqlPropName = _sqlMapper.GetSqlPropertyName(typeof(T), prop);
                 var parameter = "@" + sqlPropName;
                 _props.Add(prop, (parameter, sqlPropName));
                 _logger.LogDebug("Caching parameter {Parameter}", parameter);
-
             }
         }
     }

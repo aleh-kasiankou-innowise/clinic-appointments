@@ -32,14 +32,14 @@ public class AppointmentsRepository : IAppointmentsRepository
         _selectStatement =
             $"SELECT * FROM {_appointmentSqlRepresentation} " +
             $"INNER JOIN {_timeSlotTableSqlRepresentation} " +
-            $"on {_appointmentSqlRepresentation.Property(x => x.ReservedTimeSlotId)} = " +
+            $"ON {_appointmentSqlRepresentation.Property(x => x.ReservedTimeSlotId)} = " +
             $"{_timeSlotTableSqlRepresentation.Property(x => x.ReservedTimeSlotId)} " +
             $"WHERE {SqlVariables.Filter};";
 
         var insertAppointmentStatementTemplate =
             new StringBuilder($"INSERT INTO {_appointmentSqlRepresentation}({SqlVariables.InsertFields}) " +
-                              $"VALUES( gen_random_uuid() ,{SqlVariables.InsertValues}) " +
-                              $"RETURNING {_appointmentSqlRepresentation.Property(x => x.AppointmentId)}");
+                              $"VALUES( {SqlVariables.InsertValues}) " +
+                              $"RETURNING {_appointmentSqlRepresentation.Property(x => x.AppointmentId)};");
 
         var updateAppointmentStatementTemplate = new StringBuilder(
             $"UPDATE {_appointmentSqlRepresentation} " +
@@ -58,8 +58,14 @@ public class AppointmentsRepository : IAppointmentsRepository
         var sqlWithParams =
             _appointmentSqlRepresentation.ApplyFilter(_selectStatement, filter);
         await using var connection = await _dataSource.OpenConnectionAsync();
-        return await connection.QuerySingleAsync<Appointment>(sqlWithParams.Sql
-            , sqlWithParams.Parameters);
+        return (await connection.QueryAsync<Appointment, ReservedTimeSlot, Appointment>(sqlWithParams.Sql
+            , (appointment, timeslot) =>
+            {
+                appointment.ReservedTimeSlot = timeslot;
+                return appointment;
+            }, sqlWithParams.Parameters,
+            splitOn:
+            $"{_appointmentSqlRepresentation.Property(x => x.ReservedTimeSlotId, true)}")).Single();
     }
 
     public async Task<IEnumerable<Appointment>> GetAppointmentsListingAsync(Expression<Func<Appointment, bool>> filter)
@@ -72,25 +78,26 @@ public class AppointmentsRepository : IAppointmentsRepository
                 appointment.ReservedTimeSlot = timeslot;
                 return appointment;
             }, sqlWithParams.Parameters,
-            splitOn: _timeSlotTableSqlRepresentation.Property(x => x.ReservedTimeSlotId, true));
+            splitOn: "ReservedTimeSlotId");
     }
 
     public async Task<Guid> CreateAppointmentAsync(Appointment newAppointment)
     {
-        var appointmentSqlParams = _appointmentSqlRepresentation.MapPropertiesToSqlParameters(newAppointment);
         await using var connection = await _dataSource.OpenConnectionAsync();
         var transaction = await connection.BeginTransactionAsync();
         var reservedTimeSlotId = await _timeSlotRepository.ReserveTimeSlot(connection, newAppointment.ReservedTimeSlot);
         newAppointment.ReservedTimeSlotId = reservedTimeSlotId;
-        var id = await connection.QueryFirstAsync<Guid>(_insertAppointmentStatementTemplate, appointmentSqlParams);
+        var appointmentSqlParams = _appointmentSqlRepresentation.MapPropertiesToSqlParameters(newAppointment);
+        var id = await connection.ExecuteScalarAsync<Guid>(_insertAppointmentStatementTemplate, appointmentSqlParams);
         await transaction.CommitAsync();
         return id;
     }
 
     public async Task UpdateAppointmentAsync(Appointment updatedAppointment)
     {
+        var idFilter = new IdFilter().ToExpression(updatedAppointment.AppointmentId.ToString());
         var savedAppointment =
-            await GetAppointmentAsync(new IdFilter().ToExpression(updatedAppointment.AppointmentId.ToString()));
+            await GetAppointmentAsync(idFilter);
         var isTimeSlotUpdateRequired = !savedAppointment.ReservedTimeSlot.Equals(updatedAppointment.ReservedTimeSlot);
         await using var connection = await _dataSource.OpenConnectionAsync();
         var transaction = await connection.BeginTransactionAsync();
@@ -104,8 +111,10 @@ public class AppointmentsRepository : IAppointmentsRepository
         }
 
         var appointmentSqlWithParams = _appointmentSqlRepresentation.ApplyFilter(_updateAppointmentStatementTemplate,
-            x => x.AppointmentId == updatedAppointment.AppointmentId);
-        await connection.ExecuteAsync(appointmentSqlWithParams.Sql, appointmentSqlWithParams.Parameters);
+            idFilter);
+        var sqlParams = appointmentSqlWithParams.Parameters;
+        _appointmentSqlRepresentation.MapPropertiesToSqlParameters(updatedAppointment, sqlParams);
+        await connection.ExecuteAsync(appointmentSqlWithParams.Sql, sqlParams);
         await transaction.CommitAsync();
     }
 }
