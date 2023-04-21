@@ -11,13 +11,3 @@ public class AppointmentInfoDto
     public Guid PatientId { get; set; }
     public Guid ServiceId { get; set; }
 }
-
-public class AppointmentReceptionistInfoDto : AppointmentInfoDto
-{
-    public Guid DoctorId { get; set; }
-}
-
-public class AppointmentDoctorInfoDto : AppointmentInfoDto
-{
-    public Guid? AppointmentResultId { get; set; }
-}

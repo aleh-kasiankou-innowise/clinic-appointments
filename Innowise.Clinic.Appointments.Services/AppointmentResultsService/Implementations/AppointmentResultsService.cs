@@ -24,18 +24,18 @@ public class AppointmentResultsService : IAppointmentResultsService
         _appointmentsRepository = appointmentsRepository;
     }
 
-    public async Task<ViewAppointmentResultDto> GetDoctorAppointmentResult(Guid id, Guid doctorId)
+    public async Task<ViewAppointmentResultDto> GetDoctorAppointmentResult(Guid appointmentId, Guid doctorId)
     {
-        var appointmentResultIdFilterExpression = new IdFilter().ToExpression(id.ToString());
+        var appointmentResultIdFilterExpression = new AppointmentIdFilter().ToExpression(appointmentId.ToString());
         var appointmentResultDoctorIdExpression = new DoctorFilter().ToExpression(doctorId.ToString());
         var complexFilter = appointmentResultIdFilterExpression.And(appointmentResultDoctorIdExpression);
         var appointmentResult = await _appointmentResultsRepository.GetAppointmentResultAsync(complexFilter);
         return appointmentResult.ToFrontendPresentation();
     }
 
-    public async Task<ViewAppointmentResultDto> GetPatientAppointmentResult(Guid id, Guid patientId)
+    public async Task<ViewAppointmentResultDto> GetPatientAppointmentResult(Guid appointmentId, Guid patientId)
     {
-        var appointmentResultIdFilterExpression = new IdFilter().ToExpression(id.ToString());
+        var appointmentResultIdFilterExpression = new AppointmentIdFilter().ToExpression(appointmentId.ToString());
         var appointmentResultPatientFilterExpression = new PatientFilter().ToExpression(patientId.ToString());
         var complexFilter = appointmentResultIdFilterExpression.And(appointmentResultPatientFilterExpression);
         var appointmentResult = await _appointmentResultsRepository.GetAppointmentResultAsync(complexFilter);
@@ -44,15 +44,8 @@ public class AppointmentResultsService : IAppointmentResultsService
 
     public async Task<Guid> CreateAppointmentResult(CreateAppointmentResultDto newAppointmentResult, Guid doctorId)
     {
-        // if first transaction succeeds and second fails, the appointment won't have record about the result.
-        // it might be a good idea to remove the result column from appointment table
         var appointmentResult = newAppointmentResult.ToNewAppointmentResult();
         var appointmentResultId = await _appointmentResultsRepository.CreateAppointmentResultAsync(appointmentResult);
-        var appointment = await _appointmentsRepository.GetAppointmentAsync(
-            new Persistence.EntityFilters.Appointments.IdFilter().ToExpression(newAppointmentResult.AppointmentId
-                .ToString()));
-        appointment.AppointmentResultId = appointmentResultId;
-        await _appointmentsRepository.UpdateAppointmentAsync(appointment);
         
         // need patient email and full appointment info
         // todo send event to notifications service

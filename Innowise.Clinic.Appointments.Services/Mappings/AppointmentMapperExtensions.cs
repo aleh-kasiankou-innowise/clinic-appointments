@@ -17,13 +17,12 @@ public static class AppointmentMapperExtensions
                 DoctorId = x.DoctorId,
                 PatientId = x.PatientId,
                 ServiceId = x.ServiceId,
-                AppointmentResultId = x.AppointmentResultId
             });
     }
     
-    public static IEnumerable<AppointmentDoctorInfoDto> ToDoctorAppointmentListing(this IEnumerable<Appointment> appointments)
+    public static IEnumerable<AppointmentInfoDto> ToDoctorAppointmentListing(this IEnumerable<Appointment> appointments)
     {
-        return appointments.Select(x => new AppointmentDoctorInfoDto
+        return appointments.Select(x => new AppointmentInfoDto
         {
             AppointmentId = x.AppointmentId,
             AppointmentStart = x.ReservedTimeSlot.AppointmentStart,
@@ -31,7 +30,6 @@ public static class AppointmentMapperExtensions
             AppointmentStatus = x.Status,
             PatientId = x.PatientId,
             ServiceId = x.ServiceId,
-            AppointmentResultId = x.AppointmentResultId
         });
     }
     

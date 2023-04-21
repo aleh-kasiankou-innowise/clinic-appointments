@@ -13,6 +13,4 @@ public class Appointment : IEntity
     public AppointmentStatus Status { get; set; }
     public Guid ReservedTimeSlotId { get; set; }
     public virtual ReservedTimeSlot ReservedTimeSlot { get; set; }
-    public Guid? AppointmentResultId { get; set; }
-    public virtual AppointmentResult? AppointmentResult { get; set; }
 }

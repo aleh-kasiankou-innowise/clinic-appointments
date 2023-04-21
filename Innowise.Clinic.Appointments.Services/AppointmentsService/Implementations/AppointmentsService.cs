@@ -47,7 +47,7 @@ public class AppointmentsService : IAppointmentsService
             .ToAppointmentHistory();
     }
 
-    public async Task<IEnumerable<AppointmentDoctorInfoDto>> GetDoctorsAppointmentsAsync(
+    public async Task<IEnumerable<AppointmentInfoDto>> GetDoctorsAppointmentsAsync(
         CompoundFilter<Appointment> filter)
     {
         var filterExpression = _filterResolver.ConvertCompoundFilterToExpression(filter);

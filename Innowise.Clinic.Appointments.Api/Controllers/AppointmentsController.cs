@@ -3,6 +3,7 @@ using Innowise.Clinic.Appointments.Exceptions;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.RequestPipeline;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
+using Innowise.Clinic.Shared.BaseClasses;
 using Innowise.Clinic.Shared.Constants;
 using Innowise.Clinic.Shared.Services.FiltrationService.Abstractions;
 using Microsoft.AspNetCore.Authorization;
@@ -10,9 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Innowise.Clinic.Appointments.Api.Controllers;
 
-[ApiController]
-[Route("[controller]")]
-public class AppointmentsController : ControllerBase
+public class AppointmentsController : ApiControllerBase
 {
     private readonly IAppointmentsService _appointmentsService;
 
@@ -35,12 +34,13 @@ public class AppointmentsController : ControllerBase
     public async Task<ActionResult<IEnumerable<AppointmentInfoDto>>> GetListOfAppointments(
         [FromBody] CompoundFilter<Appointment> filter)
     {
+        // TODO ENSURE THE ACCESS RIGHTS ARE CHECKED
         if (User.IsInRole(UserRoles.Doctor))
         {
             return Ok(await _appointmentsService.GetDoctorsAppointmentsAsync(filter));
         }
 
-        else if (User.IsInRole(UserRoles.Receptionist))
+        if (User.IsInRole(UserRoles.Receptionist))
         {
             return Ok(await _appointmentsService.GetAppointmentsAsync(filter));
         }
@@ -52,6 +52,7 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.Patient},{UserRoles.Receptionist}")]
     public async Task<ActionResult<Guid>> CreateAppointment([FromBody] CreateAppointmentDto newAppointment)
     {
+        // TODO ENSURE THE ACCESS RIGHTS ARE CHECKED
         Guid createdAppointmentId;
         if (User.IsInRole(UserRoles.Patient))
         {
@@ -71,6 +72,7 @@ public class AppointmentsController : ControllerBase
     public async Task<IActionResult> UpdateAppointment([FromRoute] Guid id,
         [FromBody] AppointmentEditTimeDto updatedAppointment)
     {
+        // TODO ENSURE THE ACCESS RIGHTS ARE CHECKED
         if (User.IsInRole(UserRoles.Patient))
         {
             if (updatedAppointment.GetType() == typeof(AppointmentEditTimeDto))
@@ -79,7 +81,7 @@ public class AppointmentsController : ControllerBase
                 return Ok();
             }
 
-            return Unauthorized();
+            return Forbid();
         }
 
         if (updatedAppointment is AppointmentEditTimeAndStatusDto editTimeAndStatusDto)

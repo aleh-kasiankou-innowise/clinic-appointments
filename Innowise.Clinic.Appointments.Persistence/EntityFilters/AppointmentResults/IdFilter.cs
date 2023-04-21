@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Innowise.Clinic.Appointments.Exceptions;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Shared.Services.FiltrationService.Abstractions;
 using Innowise.Clinic.Shared.Services.FiltrationService.Attributes;
@@ -10,10 +11,15 @@ public class IdFilter : EntityFilter<AppointmentResult>
 {
     public override Expression<Func<AppointmentResult, bool>> ToExpression(string value)
     {
-        var appointment = Expression.Parameter(typeof(AppointmentResult));
-        var tableId = Expression.Property(appointment, nameof(AppointmentResult.AppointmentResultId));
-        var filterId = Expression.Constant(Guid.Parse(value));
-        var equalityCheck = Expression.Equal(tableId, filterId);
-        return Expression.Lambda<Func<AppointmentResult, bool>>(equalityCheck, appointment);
+        if (Guid.TryParse(value, out var filterId))
+        {
+            var appointment = Expression.Parameter(typeof(AppointmentResult));
+            var tableId = Expression.Property(appointment, nameof(AppointmentResult.AppointmentResultId));
+            var filterIdExpression = Expression.Constant(filterId);
+            var equalityCheck = Expression.Equal(tableId, filterIdExpression);
+            return Expression.Lambda<Func<AppointmentResult, bool>>(equalityCheck, appointment);
+        }
+
+        throw new InvalidFilterValueFormatException("The format of appointment result id is incorrect. Please use uuid.");
     }
 }

@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Innowise.Clinic.Appointments.Exceptions;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Shared.Services.FiltrationService.Abstractions;
 using Innowise.Clinic.Shared.Services.FiltrationService.Attributes;
@@ -21,6 +22,6 @@ public class OfficeFilter : EntityFilter<Appointment>
             return Expression.Lambda<Func<Appointment, bool>>(equalityCheck, appointment);
         }
 
-        throw new ApplicationException("The format of office id is incorrect. Please use uuid.");
+        throw new InvalidFilterValueFormatException("The format of office id is incorrect. Please use uuid.");
     }
 }

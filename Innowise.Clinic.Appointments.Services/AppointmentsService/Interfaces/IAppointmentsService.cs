@@ -8,7 +8,7 @@ public interface IAppointmentsService
 {
     Task<IEnumerable<ViewAppointmentHistoryDto>> GetPatientAppointmentHistory(Guid patientId);
 
-    Task<IEnumerable<AppointmentDoctorInfoDto>> GetDoctorsAppointmentsAsync(
+    Task<IEnumerable<AppointmentInfoDto>> GetDoctorsAppointmentsAsync(
         CompoundFilter<Appointment> appointmentDoctorFilterDto);
 
     Task<IEnumerable<AppointmentInfoDto>> GetAppointmentsAsync(

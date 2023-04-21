@@ -33,6 +33,7 @@ public static class ConfigurationExtensions
 {
     public static IServiceCollection ConfigureSecurity(this IServiceCollection services)
     {
+        // TODO MOVE TO SHARED PACKAGE
         services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -56,6 +57,7 @@ public static class ConfigurationExtensions
 
     public static IServiceCollection ConfigureSwagger(this IServiceCollection services)
     {
+        // TODO MOVE TO SHARED PACKAGE
         services.AddSwaggerGen(opts =>
         {
             opts.AddSecurityDefinition("bearerAuth", new OpenApiSecurityScheme
@@ -156,6 +158,7 @@ public static class ConfigurationExtensions
 
     public static WebApplicationBuilder ConfigureLogging(this WebApplicationBuilder builder)
     {
+        // TODO MOVE TO SHARED PACKAGE
         var logger = new LoggerConfiguration()
             .WriteTo.Console()
             .MinimumLevel.Debug()

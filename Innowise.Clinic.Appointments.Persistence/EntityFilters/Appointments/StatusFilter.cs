@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Innowise.Clinic.Appointments.Exceptions;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Shared.Services.FiltrationService.Abstractions;
 using Innowise.Clinic.Shared.Services.FiltrationService.Attributes;
@@ -19,6 +20,6 @@ public class StatusFilter : EntityFilter<Appointment>
             return Expression.Lambda<Func<Appointment, bool>>(equalityCheck, appointment);
         }
 
-        throw new ApplicationException("The format of status is incorrect. Please use integer.");
+        throw new InvalidFilterValueFormatException("The format of status is incorrect. Please use integer.");
     }
 }

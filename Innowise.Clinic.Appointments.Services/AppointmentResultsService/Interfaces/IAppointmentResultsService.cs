@@ -4,8 +4,8 @@ namespace Innowise.Clinic.Appointments.Services.AppointmentResultsService.Interf
 
 public interface IAppointmentResultsService
 {
-    Task<ViewAppointmentResultDto> GetDoctorAppointmentResult(Guid id, Guid doctorId);
-    Task<ViewAppointmentResultDto> GetPatientAppointmentResult(Guid id, Guid patientId);
+    Task<ViewAppointmentResultDto> GetDoctorAppointmentResult(Guid appointmentId, Guid doctorId);
+    Task<ViewAppointmentResultDto> GetPatientAppointmentResult(Guid appointmentId, Guid patientId);
 
     Task<Guid> CreateAppointmentResult(CreateAppointmentResultDto newAppointmentResult, Guid doctorId);
 

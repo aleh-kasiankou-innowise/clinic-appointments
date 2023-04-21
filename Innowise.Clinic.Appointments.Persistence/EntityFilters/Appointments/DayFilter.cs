@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Innowise.Clinic.Appointments.Exceptions;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Shared.Services.FiltrationService.Abstractions;
 using Innowise.Clinic.Shared.Services.FiltrationService.Attributes;
@@ -20,6 +21,6 @@ public class DayFilter : EntityFilter<Appointment>
             return Expression.Lambda<Func<Appointment, bool>>(equalityCheck, appointment);
         }
 
-        throw new ApplicationException("The date in the filter is invalid.");
+        throw new InvalidFilterValueFormatException("The date in the filter is invalid.");
     }
 }
