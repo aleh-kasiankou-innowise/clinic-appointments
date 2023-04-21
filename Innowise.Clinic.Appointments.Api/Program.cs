@@ -1,12 +1,12 @@
 using Innowise.Clinic.Appointments.Configuration;
 using Innowise.Clinic.Appointments.RequestPipeline;
+using Innowise.Clinic.Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.ConfigureLogging();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 builder.Services.ConfigureSecurity();
 builder.Services.ConfigureSwagger();
 builder.Services.AddSingleton<ExceptionHandlingMiddleware>();
