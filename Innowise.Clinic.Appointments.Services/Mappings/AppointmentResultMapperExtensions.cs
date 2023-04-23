@@ -1,5 +1,7 @@
 using Innowise.Clinic.Appointments.Dto;
 using Innowise.Clinic.Appointments.Persistence.Models;
+using Innowise.Clinic.Appointments.Services.NotificationsService;
+using Innowise.Clinic.Shared.MassTransit.MessageTypes.Events;
 
 namespace Innowise.Clinic.Appointments.Services.Mappings;
 
@@ -41,5 +43,14 @@ public static class AppointmentResultMapperExtensions
             Conclusion = appointmentResultEditDto.Conclusion,
             Recommendations = appointmentResultEditDto.Recommendations
         };
+    }
+
+    public static AppointmentResultNotification ToNotification(this AppointmentResult savedAppointmentResult)
+    {
+        return new(savedAppointmentResult.AppointmentId,
+            savedAppointmentResult.Appointment.PatientId, savedAppointmentResult.Appointment.DoctorId,
+            savedAppointmentResult.Appointment.ServiceId,
+            savedAppointmentResult.Appointment.ReservedTimeSlot.AppointmentStart, savedAppointmentResult.Complaints,
+            savedAppointmentResult.Conclusion, savedAppointmentResult.Recommendations);
     }
 }

@@ -5,6 +5,7 @@ using Innowise.Clinic.Appointments.Persistence.EntityFilters.Appointments;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.Persistence.ObjectRelationalMapping;
 using Innowise.Clinic.Appointments.Persistence.Repositories.Interfaces;
+using Innowise.Clinic.Shared.Exceptions;
 using Npgsql;
 
 namespace Innowise.Clinic.Appointments.Persistence.Repositories.Implementations;
@@ -55,17 +56,9 @@ public class AppointmentsRepository : IAppointmentsRepository
 
     public async Task<Appointment> GetAppointmentAsync(Expression<Func<Appointment, bool>> filter)
     {
-        var sqlWithParams =
-            _appointmentSqlRepresentation.ApplyFilter(_selectStatement, filter);
-        await using var connection = await _dataSource.OpenConnectionAsync();
-        return (await connection.QueryAsync<Appointment, ReservedTimeSlot, Appointment>(sqlWithParams.Sql
-            , (appointment, timeslot) =>
-            {
-                appointment.ReservedTimeSlot = timeslot;
-                return appointment;
-            }, sqlWithParams.Parameters,
-            splitOn:
-            $"{_appointmentSqlRepresentation.Property(x => x.ReservedTimeSlotId, true)}")).Single();
+        return (await GetAppointmentsListingAsync(filter)).SingleOrDefault() ??
+               throw new EntityNotFoundException("Cannot find appointment that meets the filter criteria.");
+        ;
     }
 
     public async Task<IEnumerable<Appointment>> GetAppointmentsListingAsync(Expression<Func<Appointment, bool>> filter)
@@ -78,7 +71,7 @@ public class AppointmentsRepository : IAppointmentsRepository
                 appointment.ReservedTimeSlot = timeslot;
                 return appointment;
             }, sqlWithParams.Parameters,
-            splitOn: "ReservedTimeSlotId");
+            splitOn: $"{_appointmentSqlRepresentation.Property(x => x.ReservedTimeSlotId, true)}");
     }
 
     public async Task<Guid> CreateAppointmentAsync(Appointment newAppointment)

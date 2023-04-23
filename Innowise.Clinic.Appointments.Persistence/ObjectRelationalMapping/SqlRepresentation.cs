@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
+using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Shared.BaseClasses;
 using Innowise.Clinic.Shared.Services.FiltrationService;
 using Innowise.Clinic.Shared.Services.SqlMappingService;

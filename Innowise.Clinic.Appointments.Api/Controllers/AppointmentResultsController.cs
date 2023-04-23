@@ -38,8 +38,7 @@ public class AppointmentResultsController : ApiControllerBase
     [Authorize(Roles = $"{UserRoles.Doctor}")]
     public async Task<ActionResult<Guid>> CreateAppointmentResult([FromBody] CreateAppointmentResultDto newAppointment)
     {
-        // TODO ENSURE THE ACCESS RIGHTS ARE CHECKED
-        return Ok((await _appointmentResultsService.CreateAppointmentResult(newAppointment, GetProfileAccessId()))
+        return Ok((await _appointmentResultsService.CreateAppointmentResult(newAppointment))
             .ToString());
     }
 
@@ -48,8 +47,7 @@ public class AppointmentResultsController : ApiControllerBase
     public async Task<ActionResult> UpdateAppointmentResult([FromRoute] Guid id,
         [FromBody] AppointmentResultEditDto updatedAppointment)
     {
-        // TODO ENSURE THE ACCESS RIGHTS ARE CHECKED
-        await _appointmentResultsService.UpdateAppointmentResult(id, updatedAppointment, GetProfileAccessId());
+        await _appointmentResultsService.UpdateAppointmentResult(id, updatedAppointment);
         return Ok();
     }
 

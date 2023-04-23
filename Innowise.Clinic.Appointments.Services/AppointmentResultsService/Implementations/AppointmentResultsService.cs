@@ -3,25 +3,22 @@ using Innowise.Clinic.Appointments.Persistence.EntityFilters.AppointmentResults;
 using Innowise.Clinic.Appointments.Persistence.Repositories.Interfaces;
 using Innowise.Clinic.Appointments.Services.AppointmentResultsService.Interfaces;
 using Innowise.Clinic.Appointments.Services.Mappings;
+using Innowise.Clinic.Appointments.Services.NotificationsService;
 using Innowise.Clinic.Shared.Services.PredicateBuilder;
-using MassTransit;
 using DoctorFilter = Innowise.Clinic.Appointments.Persistence.EntityFilters.AppointmentResults.DoctorFilter;
-using IdFilter = Innowise.Clinic.Appointments.Persistence.EntityFilters.AppointmentResults.IdFilter;
 
 namespace Innowise.Clinic.Appointments.Services.AppointmentResultsService.Implementations;
 
 public class AppointmentResultsService : IAppointmentResultsService
 {
     private readonly IAppointmentResultsRepository _appointmentResultsRepository;
-    private readonly IAppointmentsRepository _appointmentsRepository;
-    private readonly IBus _bus;
+    private readonly BackgroundNotificationsService _notificationsService;
 
-    public AppointmentResultsService(IBus bus, IAppointmentResultsRepository appointmentResultsRepository,
-        IAppointmentsRepository appointmentsRepository)
+    public AppointmentResultsService(IAppointmentResultsRepository appointmentResultsRepository,
+        BackgroundNotificationsService notificationsService)
     {
-        _bus = bus;
         _appointmentResultsRepository = appointmentResultsRepository;
-        _appointmentsRepository = appointmentsRepository;
+        _notificationsService = notificationsService;
     }
 
     public async Task<ViewAppointmentResultDto> GetDoctorAppointmentResult(Guid appointmentId, Guid doctorId)
@@ -42,21 +39,20 @@ public class AppointmentResultsService : IAppointmentResultsService
         return appointmentResult.ToFrontendPresentation();
     }
 
-    public async Task<Guid> CreateAppointmentResult(CreateAppointmentResultDto newAppointmentResult, Guid doctorId)
+    public async Task<Guid> CreateAppointmentResult(CreateAppointmentResultDto newAppointmentResult)
     {
         var appointmentResult = newAppointmentResult.ToNewAppointmentResult();
-        var appointmentResultId = await _appointmentResultsRepository.CreateAppointmentResultAsync(appointmentResult);
-        
-        // need patient email and full appointment info
-        // todo send event to notifications service
-        return appointmentResultId;
+        var savedAppointmentResultId =
+            await _appointmentResultsRepository.CreateAppointmentResultAsync(appointmentResult);
+        await _notificationsService.EnqueueNotification(new(NotificationType.AppointmentResultNotification,
+            savedAppointmentResultId));
+        return savedAppointmentResultId;
     }
 
-    public async Task UpdateAppointmentResult(Guid id, AppointmentResultEditDto updatedAppointmentResult, Guid doctorId)
+    public async Task UpdateAppointmentResult(Guid id, AppointmentResultEditDto updatedAppointmentResult)
     {
         var appointmentResult = updatedAppointmentResult.ToUpdatedAppointmentResult(id);
         await _appointmentResultsRepository.UpdateAppointmentResultAsync(appointmentResult);
-        // need patient email and full appointment info
-        // todo send event to notification service
+        await _notificationsService.EnqueueNotification(new(NotificationType.AppointmentResultNotification, id));
     }
 }

@@ -7,7 +7,7 @@ public interface IAppointmentResultsService
     Task<ViewAppointmentResultDto> GetDoctorAppointmentResult(Guid appointmentId, Guid doctorId);
     Task<ViewAppointmentResultDto> GetPatientAppointmentResult(Guid appointmentId, Guid patientId);
 
-    Task<Guid> CreateAppointmentResult(CreateAppointmentResultDto newAppointmentResult, Guid doctorId);
+    Task<Guid> CreateAppointmentResult(CreateAppointmentResultDto newAppointmentResult);
 
-    Task UpdateAppointmentResult(Guid id, AppointmentResultEditDto updatedAppointmentResult, Guid doctorId);
+    Task UpdateAppointmentResult(Guid id, AppointmentResultEditDto updatedAppointmentResult);
 }

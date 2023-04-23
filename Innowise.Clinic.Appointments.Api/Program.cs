@@ -21,11 +21,10 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 await app.ApplyMigrations(builder.Configuration, "appointment_db");
+await app.StartNotificationSyncService();
 
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();

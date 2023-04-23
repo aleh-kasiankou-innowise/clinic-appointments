@@ -1,5 +1,4 @@
-﻿using System.Text;
-using Dapper;
+﻿using Dapper;
 using FluentMigrator.Runner;
 using Innowise.Clinic.Appointments.Persistence.Migrations;
 using Innowise.Clinic.Appointments.Persistence.Models;
@@ -11,21 +10,17 @@ using Innowise.Clinic.Appointments.Services.AppointmentResultsService.Interfaces
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Implementations;
 using Innowise.Clinic.Appointments.Services.AppointmentsService.Interfaces;
 using Innowise.Clinic.Appointments.Services.MassTransitService.Consumers;
+using Innowise.Clinic.Appointments.Services.NotificationsService;
 using Innowise.Clinic.Appointments.Services.TimeSlotsService.Implementations;
 using Innowise.Clinic.Appointments.Services.TimeSlotsService.Interfaces;
 using Innowise.Clinic.Shared.MassTransit.MessageTypes.Requests;
 using Innowise.Clinic.Shared.Services.FiltrationService;
 using Innowise.Clinic.Shared.Services.SqlMappingService;
 using MassTransit;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
 using Npgsql;
-using Serilog;
 
 namespace Innowise.Clinic.Appointments.Configuration;
 
@@ -94,12 +89,14 @@ public static class ConfigurationExtensions
 
     public static IServiceCollection ConfigureServices(this IServiceCollection services)
     {
+        services.AddSingleton<BackgroundNotificationsService>();
         services.AddSingleton<FilterResolver<Appointment>>();
         services.AddSingleton<FilterResolver<AppointmentResult>>();
         services.AddSingleton<IAppointmentsService, AppointmentsService>();
         services.AddSingleton<IAppointmentResultsService, AppointmentResultsService>();
         services.AddSingleton<ITimeSlotsService, TimeSlotService>();
         return services;
+        
     }
 
     public static async Task ApplyMigrations(this WebApplication app, IConfiguration configuration, string dbName)
@@ -119,5 +116,12 @@ public static class ConfigurationExtensions
 
         var runner = services.GetRequiredService<IMigrationRunner>();
         runner.MigrateUp();
+    }
+    
+    public static async Task StartNotificationSyncService(this WebApplication app)
+    {
+        var service = app.Services.GetRequiredService<BackgroundNotificationsService>();
+        var token = new CancellationToken();
+        await Task.Run(() => service.StartAsync(token), token);
     }
 }

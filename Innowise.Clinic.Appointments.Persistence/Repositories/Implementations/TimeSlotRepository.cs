@@ -10,7 +10,7 @@ namespace Innowise.Clinic.Appointments.Persistence.Repositories.Implementations;
 
 public class TimeSlotRepository : ITimeSlotRepository
 {
-    private SqlRepresentation<ReservedTimeSlot> _timeSlotTableSqlRepresentation;
+    private readonly SqlRepresentation<ReservedTimeSlot> _timeSlotTableSqlRepresentation;
     private readonly string _insertTimeSlotStatement;
     private readonly string _deleteTimeSlotStatement;
 

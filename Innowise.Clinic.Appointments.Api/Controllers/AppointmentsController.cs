@@ -34,7 +34,6 @@ public class AppointmentsController : ApiControllerBase
     public async Task<ActionResult<IEnumerable<AppointmentInfoDto>>> GetListOfAppointments(
         [FromBody] CompoundFilter<Appointment> filter)
     {
-        // TODO ENSURE THE ACCESS RIGHTS ARE CHECKED
         if (User.IsInRole(UserRoles.Doctor))
         {
             return Ok(await _appointmentsService.GetDoctorsAppointmentsAsync(filter));
@@ -52,7 +51,6 @@ public class AppointmentsController : ApiControllerBase
     [Authorize(Roles = $"{UserRoles.Patient},{UserRoles.Receptionist}")]
     public async Task<ActionResult<Guid>> CreateAppointment([FromBody] CreateAppointmentDto newAppointment)
     {
-        // TODO ENSURE THE ACCESS RIGHTS ARE CHECKED
         Guid createdAppointmentId;
         if (User.IsInRole(UserRoles.Patient))
         {
@@ -72,7 +70,6 @@ public class AppointmentsController : ApiControllerBase
     public async Task<IActionResult> UpdateAppointment([FromRoute] Guid id,
         [FromBody] AppointmentEditTimeDto updatedAppointment)
     {
-        // TODO ENSURE THE ACCESS RIGHTS ARE CHECKED
         if (User.IsInRole(UserRoles.Patient))
         {
             if (updatedAppointment.GetType() == typeof(AppointmentEditTimeDto))

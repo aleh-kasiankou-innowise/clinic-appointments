@@ -57,35 +57,31 @@ public class AppointmentResultsRepository : IAppointmentResultsRepository
 
     public async Task<AppointmentResult> GetAppointmentResultAsync(Expression<Func<AppointmentResult, bool>> filter)
     {
-        try
-        {
-            var sqlWithParams =
-                _sqlRepresentation.ApplyFilter(_selectStatement, filter);
-            await using var connection = await _dataSource.OpenConnectionAsync();
-            return (await connection.QueryAsync<AppointmentResult, Appointment, ReservedTimeSlot, Doctor, AppointmentResult>(
-                       sqlWithParams.Sql
-                       , (appointmentResult, appointment, timeslot, doctor) =>
-                       {
-                           appointmentResult.Appointment = appointment;
-                           appointmentResult.Appointment.ReservedTimeSlot = timeslot;
-                           appointmentResult.Appointment.Doctor = doctor;
-                           return appointmentResult;
-                       },
-                       sqlWithParams.Parameters,
-                       splitOn:
-                       $"{_sqlRepresentation.Property(x => x.AppointmentId, true)}, " +
-                       $"{_appointmentSqlRepresentation.Property(x => x.ReservedTimeSlotId, true)}, " +
-                       $"{_doctorSqlRepresentation.Property(x => x.DoctorId, true)}"))
-                   .SingleOrDefault() ??
+        return (await GetAppointmentsListingAsync(filter)).SingleOrDefault() ??
                    throw new EntityNotFoundException("Cannot find appointment result that meets the filter criteria.");
-        }
 
-        catch
-        {
-            _logger.LogWarning("Cannot find {Type} that meets the following criteria {Criteria}",
-                typeof(AppointmentResult), filter);
-            throw;
-        }
+    }
+
+    public async Task<IEnumerable<AppointmentResult>> GetAppointmentsListingAsync(
+        Expression<Func<AppointmentResult, bool>> filter)
+    {
+        var sqlWithParams = _sqlRepresentation.ApplyFilter(_selectStatement, filter);
+        await using var connection = await _dataSource.OpenConnectionAsync();
+        return await connection
+            .QueryAsync<AppointmentResult, Appointment, ReservedTimeSlot, Doctor, AppointmentResult>(
+                sqlWithParams.Sql
+                , (appointmentResult, appointment, timeslot, doctor) =>
+                {
+                    appointmentResult.Appointment = appointment;
+                    appointmentResult.Appointment.ReservedTimeSlot = timeslot;
+                    appointmentResult.Appointment.Doctor = doctor;
+                    return appointmentResult;
+                },
+                sqlWithParams.Parameters,
+                splitOn:
+                $"{_sqlRepresentation.Property(x => x.AppointmentId, true)}, " +
+                $"{_appointmentSqlRepresentation.Property(x => x.ReservedTimeSlotId, true)}, " +
+                $"{_doctorSqlRepresentation.Property(x => x.DoctorId, true)}");
     }
 
     public async Task<Guid> CreateAppointmentResultAsync(AppointmentResult newAppointmentResult)
@@ -102,7 +98,9 @@ public class AppointmentResultsRepository : IAppointmentResultsRepository
     {
         var idFilterExpression = new IdFilter().ToExpression(appointmentResult.AppointmentResultId.ToString());
         var appointmentSqlWithParams = _sqlRepresentation.ApplyFilter(_updateStatement, idFilterExpression);
+        var sqlParameters = appointmentSqlWithParams.Parameters;
+        _sqlRepresentation.MapPropertiesToSqlParameters(appointmentResult, sqlParameters);
         await using var connection = await _dataSource.OpenConnectionAsync();
-        await connection.ExecuteAsync(appointmentSqlWithParams.Sql, appointmentSqlWithParams.Parameters);
+        await connection.ExecuteAsync(appointmentSqlWithParams.Sql, sqlParameters);
     }
 }
