@@ -57,6 +57,8 @@ public class BackgroundNotificationsService : BackgroundService
                 enqueueTask.DeadLine - _notificationThresholdHoursBeforeAppointment <=
                 _nextNotificationSync)
             {
+                Log.Debug("{MassTransitActionType} reminder immediately for appointment with id {AppointmentId}",
+                    "Publishing", enqueueTask.PrimaryId);
                 var appointment = await _appointmentsRepository.GetAppointmentAsync(
                     new IdFilter().ToExpression(enqueueTask.PrimaryId.ToString()));
                 await _bus.Publish(appointment.ToNotification());
@@ -105,7 +107,6 @@ public class BackgroundNotificationsService : BackgroundService
 
         try
         {
-            // TODO SENDING TASKS WITHOUT AWAIT
             var appointmentsToNotifyOf =
                 _appointmentsRepository.GetAppointmentsListingAsync(bulkFilters.AppointmentBulkFilter);
             var appointmentResultsToNotifyOf =
@@ -158,7 +159,8 @@ public class BackgroundNotificationsService : BackgroundService
             {
                 foreach (var appointment in await appointmentBulkRetrievalTask)
                 {
-                    Log.Debug("Publishing Reminder for appointment with id {AppointmentId}", appointment.AppointmentId);
+                    Log.Debug("{MassTransitActionType} Reminder for appointment with id {AppointmentId}", "Publishing",
+                        appointment.AppointmentId);
                     publishingTasks.Add(_bus.Publish(appointment.ToNotification()));
                 }
             }
@@ -166,7 +168,8 @@ public class BackgroundNotificationsService : BackgroundService
             {
                 foreach (var appointmentResult in await appointmentResultBulkRetrievalTask)
                 {
-                    Log.Debug("Publishing Result Notification for appointment with id {AppointmentId}",
+                    Log.Debug("{MassTransitActionType} Result Notification for appointment with id {AppointmentId}",
+                        "Publishing",
                         appointmentResult.AppointmentId);
                     publishingTasks.Add(_bus.Publish(appointmentResult.ToNotification()));
                 }
