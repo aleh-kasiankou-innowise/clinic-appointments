@@ -1,6 +1,5 @@
 using Innowise.Clinic.Appointments.Dto;
 using Innowise.Clinic.Appointments.Persistence.Models;
-using Innowise.Clinic.Appointments.Services.NotificationsService;
 using Innowise.Clinic.Shared.MassTransit.MessageTypes.Events;
 
 namespace Innowise.Clinic.Appointments.Services.Mappings;

@@ -7,11 +7,14 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Innowise.Clinic.Shared" Version="0.0.53" />
+      <PackageReference Include="Innowise.Clinic.Shared" Version="0.0.59" />
       <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
       <PackageReference Include="Microsoft.AspNetCore.Mvc.Core" Version="2.2.5" />
       <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="6.27.0" />
       <PackageReference Include="Serilog.AspNetCore" Version="6.1.0" />
+      <PackageReference Include="Serilog.Extensions.Hosting" Version="5.0.1" />
+      <PackageReference Include="Serilog.Formatting.Elasticsearch" Version="9.0.0" />
+      <PackageReference Include="Serilog.Sinks.Elasticsearch" Version="9.0.0" />
     </ItemGroup>
 
     <ItemGroup>

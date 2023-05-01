@@ -7,7 +7,7 @@ using Innowise.Clinic.Appointments.Services.Mappings;
 using Innowise.Clinic.Shared.Services.PredicateBuilder;
 using MassTransit;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace Innowise.Clinic.Appointments.Services.NotificationsService;
 
@@ -68,8 +68,10 @@ public class BackgroundNotificationsService : BackgroundService
         finally
         {
             _semaphoreSlim.Release();
+            Log.Debug("Added notification to sync queue. Type: {MessageType}", enqueueTask.NotificationType);
         }
     }
+
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -78,6 +80,7 @@ public class BackgroundNotificationsService : BackgroundService
 
     private void RunSynchronisation(object? state)
     {
+        Log.Debug("Starting notification sync with notification service");
         _nextNotificationSync = DateTime.Now + _notificationSyncInterval;
         _ = SyncNotifications();
     }
@@ -102,6 +105,7 @@ public class BackgroundNotificationsService : BackgroundService
 
         try
         {
+            // TODO SENDING TASKS WITHOUT AWAIT
             var appointmentsToNotifyOf =
                 _appointmentsRepository.GetAppointmentsListingAsync(bulkFilters.AppointmentBulkFilter);
             var appointmentResultsToNotifyOf =
@@ -109,8 +113,9 @@ public class BackgroundNotificationsService : BackgroundService
             var tasks = new List<Task> { appointmentsToNotifyOf, appointmentResultsToNotifyOf };
             await PublishMessagesToBroker(tasks);
         }
-        catch (Exception)
+        catch (Exception e)
         {
+            Log.Warning("Cannot sync queue with notification service. Returning notifications back to queue");
             foreach (var notificationTask in queueDump)
             {
                 _notificationsQueue.Enqueue(notificationTask);
@@ -142,16 +147,18 @@ public class BackgroundNotificationsService : BackgroundService
 
     private async Task PublishMessagesToBroker(List<Task> tasks)
     {
+        var publishingTasks = new List<Task>();
+
         while (tasks.Any())
         {
             var accomplishedTask = await Task.WhenAny(tasks);
             tasks.Remove(accomplishedTask);
 
-            var publishingTasks = new List<Task>();
             if (accomplishedTask is Task<IEnumerable<Appointment>> appointmentBulkRetrievalTask)
             {
                 foreach (var appointment in await appointmentBulkRetrievalTask)
                 {
+                    Log.Debug("Publishing Reminder for appointment with id {AppointmentId}", appointment.AppointmentId);
                     publishingTasks.Add(_bus.Publish(appointment.ToNotification()));
                 }
             }
@@ -159,11 +166,13 @@ public class BackgroundNotificationsService : BackgroundService
             {
                 foreach (var appointmentResult in await appointmentResultBulkRetrievalTask)
                 {
+                    Log.Debug("Publishing Result Notification for appointment with id {AppointmentId}",
+                        appointmentResult.AppointmentId);
                     publishingTasks.Add(_bus.Publish(appointmentResult.ToNotification()));
                 }
             }
-
-            await Task.WhenAll(publishingTasks);
         }
+
+        await Task.WhenAll(publishingTasks);
     }
 }

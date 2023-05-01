@@ -21,6 +21,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using Serilog;
+using Serilog.Sinks.Elasticsearch;
 
 namespace Innowise.Clinic.Appointments.Configuration;
 
@@ -123,5 +125,26 @@ public static class ConfigurationExtensions
         var service = app.Services.GetRequiredService<BackgroundNotificationsService>();
         var token = new CancellationToken();
         await Task.Run(() => service.StartAsync(token), token);
+    }
+    
+    public static WebApplicationBuilder ConfigureSerilog(this WebApplicationBuilder builder)
+    {
+        var logger = new LoggerConfiguration()
+            .ReadFrom.Configuration(builder.Configuration)
+            .Enrich.FromLogContext()
+            .WriteTo.Elasticsearch(new ElasticsearchSinkOptions(new Uri(builder.Configuration["ElasticSearchHost"]))
+            {
+                AutoRegisterTemplate = true,
+                OverwriteTemplate = true,
+                IndexFormat = $"clinic.appointments-{0:yy.MM}",
+                BatchAction = ElasticOpType.Index,
+                DetectElasticsearchVersion = true,
+            })
+            .WriteTo.Console()
+            .CreateLogger();
+
+        Log.Logger = logger;
+        builder.Host.UseSerilog(logger);
+        return builder;
     }
 }
