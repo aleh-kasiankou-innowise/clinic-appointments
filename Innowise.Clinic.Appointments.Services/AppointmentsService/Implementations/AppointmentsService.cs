@@ -1,5 +1,6 @@
 using Innowise.Clinic.Appointments.Dto;
 using Innowise.Clinic.Appointments.Exceptions;
+using Innowise.Clinic.Appointments.Persistence.EntityFilters.Appointments;
 using Innowise.Clinic.Appointments.Persistence.EntityFilters.Doctors;
 using Innowise.Clinic.Appointments.Persistence.Models;
 using Innowise.Clinic.Appointments.Persistence.Repositories.Interfaces;
@@ -46,7 +47,7 @@ public class AppointmentsService : IAppointmentsService
 
     public async Task<IEnumerable<ViewAppointmentHistoryDto>> GetPatientAppointmentHistory(Guid patientId)
     {
-        var patientIdFilter = new IdFilter().ToExpression(patientId.ToString());
+        var patientIdFilter = new PatientFilter().ToExpression(patientId.ToString());
         var appointments = await _appointmentsRepository.GetAppointmentsListingAsync(patientIdFilter);
         return appointments
             .OrderByDescending(x => x.ReservedTimeSlot.AppointmentStart)
