@@ -11,4 +11,5 @@ public class ViewAppointmentResultDto
     public string Complaints { get; set; }
     public string Conclusion { get; set; }
     public string Recommendations { get; set; }
+    public string? PdfResultsLink { get; set; }
 }

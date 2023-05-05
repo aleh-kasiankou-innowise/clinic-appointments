@@ -10,4 +10,5 @@ public class AppointmentResult : IEntity
     public string Complaints { get; set; }
     public string Conclusion { get; set; }
     public string Recommendations { get; set; }
+    public string? PdfLink { get; set; }
 }

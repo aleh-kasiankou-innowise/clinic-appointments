@@ -50,16 +50,19 @@ public class AppointmentResultsRepository : IAppointmentResultsRepository
             new StringBuilder(
                 $"INSERT INTO {_sqlRepresentation}({SqlVariables.InsertFields}) VALUES({SqlVariables.InsertValues}) " +
                 $"RETURNING {sqlRepresentation.Property(x => x.AppointmentResultId)};");
+        var updateStatementTemplate =
+            new StringBuilder(
+                $"UPDATE {_sqlRepresentation} SET {SqlVariables.UpdateValues} WHERE {SqlVariables.Filter};");
+
 
         _insertStatement = _sqlRepresentation.CompleteInsertStatement(insertStatementTemplate);
-        _updateStatement = $"UPDATE {_sqlRepresentation} SET {SqlVariables.UpdateValues} WHERE {SqlVariables.Filter};";
+        _updateStatement = _sqlRepresentation.CompleteUpdateStatement(updateStatementTemplate);
     }
 
     public async Task<AppointmentResult> GetAppointmentResultAsync(Expression<Func<AppointmentResult, bool>> filter)
     {
         return (await GetAppointmentsListingAsync(filter)).SingleOrDefault() ??
-                   throw new EntityNotFoundException("Cannot find appointment result that meets the filter criteria.");
-
+               throw new EntityNotFoundException("Cannot find appointment result that meets the filter criteria.");
     }
 
     public async Task<IEnumerable<AppointmentResult>> GetAppointmentsListingAsync(

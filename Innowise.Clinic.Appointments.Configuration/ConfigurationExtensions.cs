@@ -35,6 +35,7 @@ public static class ConfigurationExtensions
         services.AddMassTransit(x =>
         {
             x.AddConsumer<DoctorChangesAppointmentsConsumer>();
+            x.AddConsumer<PdfWithAppointmentResultsSavedConsumer>();
             x.AddRequestClient<ProfileExistsAndHasRoleRequest>();
             x.AddRequestClient<ServiceExistsAndBelongsToSpecializationRequest>();
             x.UsingRabbitMq((context, cfg) =>

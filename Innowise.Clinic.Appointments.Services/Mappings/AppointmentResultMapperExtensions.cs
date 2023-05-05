@@ -18,7 +18,8 @@ public static class AppointmentResultMapperExtensions
             ServiceId = appointmentResult.Appointment.ServiceId,
             Complaints = appointmentResult.Complaints,
             Conclusion = appointmentResult.Conclusion,
-            Recommendations = appointmentResult.Recommendations
+            Recommendations = appointmentResult.Recommendations,
+            PdfResultsLink = appointmentResult.PdfLink
         };
     }
 
